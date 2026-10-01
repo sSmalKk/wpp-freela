@@ -1,0 +1,981 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>wpp-freela</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #fff; --txt: #1b1f24; --sub: #667085; --linha: #e4e7ec;
+    --verde: #16a34a; --verde-bg: #dcfce7; --verm: #dc2626; --verm-bg: #fee2e2;
+    --azul: #2563eb; --azul-bg: #dbeafe; --amar: #a16207; --amar-bg: #fef9c3;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0f1115; --card: #171a21; --txt: #e6e8eb; --sub: #98a2b3; --linha: #2a2f3a;
+      --verde-bg: #14391f; --verm-bg: #3b1616; --azul-bg: #172554; --amar: #facc15; --amar-bg: #3a3413; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--txt); font: 14px/1.4 system-ui, Segoe UI, sans-serif; }
+  header { position: sticky; top: 0; z-index: 5; background: var(--card); border-bottom: 1px solid var(--linha); padding: 8px 16px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  h1 { font-size: 16px; margin: 0 6px 0 0; }
+  nav { display: flex; gap: 4px; flex-wrap: wrap; }
+  nav button.ativo { background: var(--azul); border-color: var(--azul); color: #fff; }
+  nav .extra { margin-left: 10px; }
+  button { font: inherit; border: 1px solid var(--linha); background: var(--card); color: var(--txt); border-radius: 6px; padding: 5px 10px; cursor: pointer; }
+  button:hover { border-color: var(--azul); }
+  button:disabled { opacity: .5; cursor: default; }
+  button.enviar { background: var(--verde); border-color: var(--verde); color: #fff; font-weight: 600; }
+  button.pular { background: var(--amar-bg); color: var(--amar); border-color: transparent; font-weight: 600; }
+  button.perigo { color: var(--verm); }
+  button.grande { padding: 10px 18px; font-size: 15px; }
+  input, select { font: inherit; color: var(--txt); background: var(--card); border: 1px solid var(--linha); border-radius: 6px; padding: 4px 6px; }
+  input[type=number] { width: 64px; }
+  .pill { padding: 2px 8px; border-radius: 99px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .ok { background: var(--verde-bg); color: var(--verde); }
+  .no { background: var(--verm-bg); color: var(--verm); }
+  .azul { background: var(--azul-bg); color: var(--azul); }
+  .amar { background: var(--amar-bg); color: var(--amar); }
+  .sub { color: var(--sub); font-size: 12px; }
+  main { padding: 12px 16px 60px; max-width: 1450px; margin: 0 auto; }
+  .grade { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin-bottom: 12px; }
+  .caixa { background: var(--card); border: 1px solid var(--linha); border-radius: 8px; padding: 12px; }
+  .num { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  textarea { width: 100%; font: inherit; color: var(--txt); background: var(--bg); border: 1px solid var(--linha); border-radius: 6px; padding: 6px; resize: vertical; }
+  .barra { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin-bottom: 10px; }
+  .grupo { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .linha { display: grid; grid-template-columns: 24px 44px minmax(240px, 1.3fr) minmax(260px, 2fr) 220px; gap: 12px; align-items: start; background: var(--card); border: 1px solid var(--linha); border-radius: 8px; padding: 10px; margin-bottom: 8px; }
+  .linha.enviado { opacity: .7; }
+  .linha.selecionada { border-color: var(--azul); box-shadow: 0 0 0 1px var(--azul); }
+  .ava { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; background: var(--linha); }
+  a.titulo { color: var(--txt); font-weight: 600; text-decoration: none; }
+  a.titulo:hover { text-decoration: underline; }
+  details { margin-top: 6px; font-size: 13px; }
+  summary { cursor: pointer; color: var(--azul); font-size: 12px; }
+  .msgs { display: flex; flex-direction: column; gap: 4px; max-height: 320px; overflow: auto; }
+  .m { border-radius: 6px; padding: 4px 8px; white-space: pre-wrap; max-width: 92%; }
+  .m.cliente, .m.dele { background: var(--amar-bg); align-self: flex-start; }
+  .m.site { background: var(--azul-bg); align-self: center; }
+  .m.eu, .m.meu { background: var(--verde-bg); align-self: flex-end; }
+  .desc { white-space: pre-wrap; background: var(--bg); border-radius: 6px; padding: 6px 8px; max-height: 220px; overflow: auto; }
+  .acoes-msg { display: flex; gap: 6px; margin-top: 4px; }
+  .acoes-msg button { font-size: 12px; padding: 2px 8px; }
+  .tel { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; font-variant-numeric: tabular-nums; }
+  #qr img { width: 220px; height: 220px; display: block; background: #fff; }
+  .oculto { display: none !important; }
+  .pastas { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+  .pastas button { border-radius: 99px; padding: 6px 14px; }
+  .pastas button.ativo { background: var(--txt); border-color: var(--txt); color: var(--bg); }
+  .pastas b { font-variant-numeric: tabular-nums; }
+  /* barras de progresso */
+  .prog { position: relative; height: 22px; background: var(--bg); border: 1px solid var(--linha); border-radius: 99px; overflow: hidden; margin: 8px 0 4px; }
+  .prog > i { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--azul); border-radius: 99px; transition: width .6s ease; }
+  .prog.verde > i { background: var(--verde); }
+  .prog > span { position: relative; display: block; text-align: center; font-size: 12px; font-weight: 600; line-height: 20px; mix-blend-mode: difference; color: #fff; }
+  .prog.indef > i { width: 35% !important; animation: vaivem 1.4s ease-in-out infinite alternate; }
+  @keyframes vaivem { from { left: 0; } to { left: 65%; } }
+  #topoProg { position: absolute; left: 0; right: 0; bottom: -1px; height: 3px; background: transparent; }
+  #topoProg > i { display: block; height: 100%; width: 0; background: var(--azul); transition: width .6s ease; }
+  #topoProg.indef > i { width: 30%; animation: vaivem2 1.4s ease-in-out infinite alternate; position: relative; }
+  @keyframes vaivem2 { from { margin-left: 0; } to { margin-left: 70%; } }
+  header { position: sticky; }
+  /* "Mensagem enviada?" depois do ▶ */
+  #confirma { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; padding: 16px; }
+  #confirma .caixa { max-width: 440px; width: 100%; text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,.3); }
+  #confirma h2 { margin: 0 0 6px; font-size: 20px; }
+  #confirma .barra { justify-content: center; margin: 14px 0 0; }
+  /* etapa 3 */
+  .revisao { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+  .revisao h3 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--sub); }
+  .fotos { display: flex; gap: 10px; align-items: center; margin-bottom: 8px; }
+  .fotos img { width: 72px; height: 72px; border-radius: 50%; object-fit: cover; background: var(--linha); }
+  .contador { font-size: 44px; font-weight: 800; font-variant-numeric: tabular-nums; text-align: center; }
+  .contador.pausado { color: var(--amar); }
+  .alerta { background: var(--verm-bg); color: var(--verm); border-radius: 6px; padding: 6px 8px; font-weight: 600; margin-bottom: 8px; }
+  .fila { display: flex; gap: 4px; flex-wrap: wrap; margin: 8px 0; }
+  .fila span { width: 12px; height: 12px; border-radius: 3px; background: var(--linha); }
+  .fila .enviado { background: var(--verde); } .fila .pulado { background: var(--amar); } .fila .falhou { background: var(--verm); } .fila .atual { outline: 2px solid var(--azul); }
+  @media (max-width: 1000px) {
+    .linha { grid-template-columns: 24px 44px 1fr; }
+    .linha > :nth-child(n+4) { grid-column: 3; }
+    .revisao { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>wpp-freela</h1>
+  <nav>
+    <button data-aba="scanner" class="ativo">1 · Scanner</button>
+    <button data-aba="lista">2 · Selecionar</button>
+    <button data-aba="enviar">3 · Enviar <span id="navFila"></span></button>
+    <button data-aba="projetos" class="extra">Projetos novos</button>
+    <button data-aba="importar">Importar JSON</button>
+  </nav>
+  <span style="flex:1"></span>
+  <span id="idxMini" class="sub"></span>
+  <button id="bPararTudo" class="perigo oculto" title="para o scanner e o envio de interesses">■ Parar tudo</button>
+  <span>WhatsApp: <span id="wpp" class="pill">…</span></span>
+  <div id="topoProg" class="oculto"><i></i></div>
+</header>
+
+<main>
+  <!-- ===================== 1 SCANNER ===================== -->
+  <section id="aba-scanner">
+    <div class="grade">
+      <div class="caixa">
+        <div class="sub">conversas no índice</div><div class="num" id="sTotal">0</div>
+        <div class="sub" id="sSituacoes"></div>
+      </div>
+      <div class="caixa">
+        <div class="sub">com telefone</div><div class="num" id="sTel">0</div>
+        <div class="sub" id="sWpp"></div>
+      </div>
+      <div class="caixa">
+        <div class="sub">WhatsApp já enviado</div><div class="num" id="sEnv">0</div>
+        <div class="sub" id="sContatos"></div>
+      </div>
+    </div>
+    <div class="caixa">
+      <div class="barra">
+        <button id="bIndexar" class="grande enviar" title="lista até a primeira página sem novidade, depois lê o que falta">Escanear (novidades)</button>
+        <button id="bIndexarTudo" class="grande" title="aperta Próximo até a última página da caixa de mensagens do site">Escanear tudo</button>
+        <button id="bContinuar" class="grande" title="retoma o scan de onde parou">Continuar</button>
+        <button id="bPararScan" class="grande perigo oculto">Parar</button>
+        <span id="idxStatus"></span>
+      </div>
+      <div id="scanProg" class="prog oculto"><i></i><span></span></div>
+      <div class="grade" id="fases" style="margin:8px 0 0"></div>
+      <p id="salvo" class="sub" style="margin:8px 0 0"></p>
+      <p class="sub">O scanner usa uma aba só dele no Chrome (perfil chrome-rpa). Pode deixar rodando e usar o PC — não precisa ficar olhando.
+        Ele abre a caixa de mensagens do site (a pasta Arquivado do site não é lida), aperta <b>Próximo</b> até o fim, abre cada conversa, lê o que o cliente disse, o número (dele ou liberado pelo site) e o projeto.</p>
+    </div>
+    <div class="caixa" style="margin-top:12px">
+      <div class="barra"><b>WhatsApp (Evolution)</b> <span id="wpp2" class="pill"></span> <button id="bConectar" class="oculto">Conectar (QR)</button> <button id="bChecar">Checar quais números têm WhatsApp</button> <button id="bHistorico">Checar histórico de conversa</button> <span id="histStatus" class="sub"></span>
+      <div id="histProg" class="prog verde oculto" title="conversas do WhatsApp que já chegaram na Evolution"><i></i><span></span></div>
+      <div id="histInfo" class="sub"></div></div>
+      <div id="qr" class="oculto"><div class="sub">WhatsApp → Aparelhos conectados → Conectar aparelho</div><img alt="QR do WhatsApp"></div>
+    </div>
+  </section>
+
+  <!-- ===================== 2 LISTA ===================== -->
+  <section id="aba-lista" class="oculto">
+    <div class="pastas">
+      <button data-pasta="caixa" class="ativo">Caixa de entrada <b id="nCaixa">0</b></button>
+      <button data-pasta="enviados">Enviados <b id="nEnviados">0</b></button>
+      <button data-pasta="arquivados">Arquivados <b id="nArquivados">0</b></button>
+      <span style="flex:1"></span>
+      <button id="bArquivarAntigos" title="arquiva as conversas de antes de ontem que nunca receberam WhatsApp">Arquivar antigos não enviados</button>
+    </div>
+    <div class="grade">
+      <div class="caixa">
+        <div class="sub">Minha mensagem — <b>{nome}</b> <b>{projeto}</b> <b>{saudacao}</b></div>
+        <textarea id="minhaMsg" rows="3"></textarea>
+      </div>
+      <div class="caixa">
+        <div class="sub">Se já falei com o contato — também <b>{projetoAnterior}</b></div>
+        <textarea id="minhaMsgRetorno" rows="3"></textarea>
+      </div>
+    </div>
+
+    <div class="barra">
+      <input type="search" id="busca" placeholder="buscar projeto, cliente, número">
+      <select id="fSituacao">
+        <option value="">situação: todas</option>
+        <option value="com-contato">com contato</option>
+        <option value="respondeu">cliente respondeu</option>
+        <option value="liberado">contato liberado pelo site</option>
+        <option value="aguardando">aguardando (sem contato ainda)</option>
+        <option value="importado">importados (JSON)</option>
+      </select>
+      <label><input type="checkbox" id="fFechados" checked> esconder projetos fechados/cancelados</label>
+      <label><input type="checkbox" id="fWpp"> só com WhatsApp</label>
+      <select id="fHistorico" title="se já existe conversa no seu WhatsApp com esse número (de qualquer origem)">
+        <option value="">histórico: todos</option>
+        <option value="sem">sem histórico de conversa</option>
+        <option value="com">já tem histórico de conversa</option>
+        <option value="nao-checado">histórico não checado</option>
+        <option value="checado-nao-mandei">histórico checado, não mandei msg</option>
+      </select>
+      <select id="fEnvio" title="WhatsApp que VOCÊ já mandou por este painel">
+        <option value="">envio: todos</option>
+        <option value="nao-enviei">ainda não mandei WhatsApp</option>
+        <option value="enviei">já mandei WhatsApp (este projeto)</option>
+        <option value="contato">já mandei pro contato (outro projeto)</option>
+      </select>
+      <span id="contagem" class="sub"></span>
+    </div>
+
+    <div class="barra caixa">
+      <div class="grupo"><b>Selecionar:</b>
+        <button data-sel="7">7 dias</button>
+        <button data-sel="30">30 dias</button>
+        <button data-sel="90">3 meses</button>
+        <button data-sel="todos">todos visíveis</button>
+        <button data-sel="nenhum">nenhum</button>
+      </div>
+      <div class="grupo"><span class="sub">de</span><input type="date" id="selDe"><span class="sub">até</span><input type="date" id="selAte"><button id="bSelPeriodo">período</button></div>
+      <div class="grupo"><b>Nos selecionados:</b> <button id="bMinhaSel">Minha msg</button> <button id="bIaSel">IA</button></div>
+      <span id="selInfo" class="pill azul"></span>
+      <button id="bArquivarSel">Arquivar selecionados</button>
+      <button id="bDesarquivarSel" class="oculto">Desarquivar selecionados</button>
+      <button id="bIrEnviar" class="enviar">Ir para o envio →</button>
+    </div>
+
+    <div id="lista"></div>
+  </section>
+
+  <!-- ===================== 3 ENVIAR ===================== -->
+  <section id="aba-enviar" class="oculto">
+    <div class="caixa barra">
+      <b id="eResumo"></b>
+      <div class="grupo"><span class="sub">contagem antes de enviar</span><input type="number" id="intMin" min="3"> – <input type="number" id="intMax" min="3"><span class="sub">seg</span></div>
+      <button id="eIniciar" class="enviar grande">Iniciar</button>
+      <span id="eStatus" class="sub"></span>
+    </div>
+    <div class="fila" id="eFila"></div>
+
+    <div id="eVazio" class="caixa sub">Selecione conversas na etapa 2 e clique "Ir para o envio".</div>
+
+    <div id="eRevisao" class="oculto">
+      <div class="revisao">
+        <div class="caixa">
+          <h3>Cliente</h3>
+          <div class="fotos"><img id="rFotoSite" alt=""><img id="rFotoWpp" alt=""></div>
+          <div id="rCliente"></div>
+          <div id="rAlerta"></div>
+          <h3 style="margin-top:12px">Projeto</h3>
+          <div id="rProjeto"></div>
+        </div>
+        <div class="caixa">
+          <h3>Conversa no freelancer.com.br</h3>
+          <div class="msgs" id="rConversa"></div>
+          <h3 style="margin-top:12px">WhatsApp com este número</h3>
+          <div class="msgs" id="rWhats"><span class="sub">carregando…</span></div>
+        </div>
+        <div class="caixa">
+          <h3>Enviar para</h3>
+          <div id="rNumeros"></div>
+          <button id="rPlay" class="enviar" title="abre o WhatsApp com a mensagem pronta — você envia na mão">▶ abrir no WhatsApp (manual)</button>
+          <h3 style="margin-top:12px">Mensagem</h3>
+          <textarea id="rMsg" rows="8"></textarea>
+          <div class="acoes-msg"><button id="rIa">IA</button><button id="rMinha">Minha msg</button></div>
+          <div class="contador" id="rContador">–</div>
+          <div class="barra" style="justify-content:center">
+            <button id="rEnviar" class="enviar grande">Enviar agora</button>
+            <button id="rPausar" class="grande">Pausar</button>
+            <button id="rPular" class="pular grande">Pular</button>
+            <button id="rParar" class="perigo">Parar tudo</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="caixa" style="margin-top:12px"><h3 class="sub">Registro</h3><div id="eLog" class="sub"></div></div>
+  </section>
+
+  <!-- ===================== PROJETOS NOVOS ===================== -->
+  <section id="aba-projetos" class="oculto">
+    <div class="caixa" style="margin-bottom:12px">
+      <div class="barra"><b>IA em lotes (Ollama)</b> <span class="sub">analisa N projetos → manda interesse nos que encaixam, com mensagem da IA → próximos N</span></div>
+      <div class="sub">Seu perfil (a IA compara cada projeto com isto)</div>
+      <textarea id="iaPerfil" rows="3"></textarea>
+      <div class="barra" style="margin-top:8px">
+        <span class="sub">lote</span><input type="number" id="iaTamanho" value="10" min="1" max="50">
+        <span class="sub">nota mínima</span><input type="number" id="iaNota" value="6" min="0" max="10">
+        <span class="sub">pausa entre envios</span><input type="number" id="iaMin" value="20"> – <input type="number" id="iaMax" value="50"><span class="sub">seg</span>
+        <button id="bIaIniciar" class="enviar grande">Iniciar IA em lotes</button>
+        <button id="bIaParar" class="perigo oculto">Parar</button>
+      </div>
+      <div id="iaProg" class="prog oculto"><i></i><span></span></div>
+      <div id="iaInfo" class="sub"></div>
+      <details style="margin-top:6px"><summary>últimas análises</summary><div id="iaAnalises" class="msgs" style="max-height:420px"></div></details>
+    </div>
+    <div class="grade">
+      <div class="caixa">
+        <div class="sub">Mensagem de interesse (vai no próprio site, não no WhatsApp)</div>
+        <textarea id="msgInteresse" rows="4"></textarea>
+      </div>
+      <div class="caixa">
+        <div class="barra"><span class="sub">buscar</span><input id="pBusca" placeholder="ex: site, automação"><span class="sub">páginas (0 = todas)</span><input type="number" id="pPaginas" value="0" min="0"><button id="bLerProjetos">Ler projetos</button><button id="bContinuarProjetos" title="retoma a leitura da página em que parou">Continuar leitura</button></div>
+        <div id="pStatus" class="sub"></div>
+      </div>
+    </div>
+    <div class="barra caixa">
+      <label><input type="checkbox" id="pEsconder" checked> esconder os que já mandei interesse</label>
+      <button id="pSelTodos">selecionar visíveis</button>
+      <button id="pSelNenhum">nenhum</button>
+      <span id="pSelInfo" class="pill azul"></span>
+      <span class="sub">intervalo</span><input type="number" id="pIntMin" value="15"> – <input type="number" id="pIntMax" value="40"><span class="sub">seg</span>
+      <button id="bInteresseSel">Enviar interesse nos selecionados</button>
+<span class="sub">abas</span><input type="number" id="pAbas" value="4" min="1" max="8" title="quantas abas mandam interesse ao mesmo tempo">
+      <button id="bInteresseTodos" class="enviar grande" title="1 aba capta /projetos e N abas mandam interesse em paralelo, ao mesmo tempo">Captar e enviar</button>
+      <button id="bInteresseParar" class="perigo oculto">Parar</button>
+      <span id="pLoteStatus" class="sub"></span>
+    </div>
+    <div id="pLoteProg" class="prog verde oculto"><i></i><span></span></div>
+    <div id="pLoteInfo" class="sub"></div>
+    <div id="pLista"></div>
+  </section>
+
+  <!-- ===================== IMPORTAR ===================== -->
+  <section id="aba-importar" class="oculto">
+    <div class="caixa">
+      <p>Cole um JSON (lista) ou escolha um arquivo. Cada item entra na etapa 2 (filtro "importados") e passa pelo mesmo envio com revisão.</p>
+      <pre class="sub">[
+  { "numero": "11999998888", "nome": "Maria", "projeto": "Site da loja", "mensagem": "Oi Maria, ..." },
+  { "telefone": "+55 21 98888-7777", "nome": "João", "projeto": "App", "descricao": "..." }
+]</pre>
+      <input type="file" id="jArquivo" accept=".json,application/json">
+      <textarea id="jTexto" rows="10"></textarea>
+      <p><button id="bImportar" class="enviar">Importar</button> <span id="jStatus" class="sub"></span></p>
+    </div>
+  </section>
+</main>
+
+<div id="confirma" class="oculto">
+  <div class="caixa">
+    <h2>Mensagem enviada?</h2>
+    <div id="confirmaQuem" class="sub"></div>
+    <div class="barra">
+      <button id="confirmaSim" class="enviar grande">Sim, enviei</button>
+      <button id="confirmaNao" class="grande">Não</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+let dados = { itens: [], config: {}, projetosNovos: { itens: [] } };
+const selecionados = new Set();
+const pSelecionados = new Set();
+const textos = {};
+const numeroEscolhido = {};
+const ocupado = new Set();
+
+async function api(caminho, corpo) {
+  const r = await fetch(caminho, corpo === undefined ? {} : { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(corpo) });
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.erro || r.status);
+  return j;
+}
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const fmtTel = (n) => n.startsWith("55") && n.length >= 12 ? `(${n.slice(2, 4)}) ${n.slice(4, -4)}-${n.slice(-4)}` : "+" + n;
+const dataCurta = (ts) => ts ? new Date(ts * 1000).toLocaleDateString("pt-BR") : "";
+const dorme = (ms) => new Promise((r) => setTimeout(r, ms));
+const porId = (id) => dados.itens.find((i) => i.id === id);
+
+/* ---------- abas ---------- */
+function irPara(aba) {
+  $$("nav button").forEach((x) => x.classList.toggle("ativo", x.dataset.aba === aba));
+  $$("main > section").forEach((s) => s.classList.toggle("oculto", s.id !== `aba-${aba}`));
+}
+$$("nav button").forEach((b) => b.onclick = () => irPara(b.dataset.aba));
+
+/* ---------- mensagem ---------- */
+const primeiroNome = (i) => { const n = String(i.contatoNome || i.cliente || "").trim().split(/\s+/)[0] || ""; return n ? n[0].toUpperCase() + n.slice(1).toLowerCase() : ""; };
+const saudacao = () => { const h = new Date().getHours(); return h < 12 ? "bom dia" : h < 18 ? "boa tarde" : "boa noite"; };
+function preencher(i) {
+  const modelo = i.jaFalamos?.length ? $("#minhaMsgRetorno").value : $("#minhaMsg").value;
+  return modelo.replaceAll("{nome}", primeiroNome(i)).replaceAll("{projeto}", i.projeto || "")
+    .replaceAll("{saudacao}", saudacao()).replaceAll("{projetoAnterior}", i.jaFalamos?.[0]?.projeto || "")
+    .replace(/ +([,!?.])/g, "$1");
+}
+function numeros(i) {
+  return [...(i.telefones || [])].sort((a, b) => (i.whats[b] === true) - (i.whats[a] === true) || (i.whats[a] === false) - (i.whats[b] === false));
+}
+const numeroDe = (i) => numeroEscolhido[i.id] || numeros(i)[0] || null;
+const podeEnviar = (i) => { const n = numeroDe(i); return !!n && i.whats[n] !== false; };
+const textoDe = (i) => (textos[i.id] ?? i.rascunho ?? "").trim();
+function salvarTexto(id, t) { textos[id] = t; api("/api/salvar-rascunho", { id, texto: t }).catch(() => {}); }
+
+const SITUACAO = {
+  respondeu: '<span class="pill amar">cliente respondeu</span>',
+  liberado: '<span class="pill azul">contato liberado</span>',
+  aguardando: '<span class="pill">aguardando</span>',
+  importado: '<span class="pill azul">importado</span>',
+};
+const conversaHtml = (conversa) => conversa.map((m) => `<div class="m ${m.quem}"><span class="sub">${m.quem} · ${esc(m.data)} ${esc(m.hora)}</span>\n${esc(m.texto)}</div>`).join("");
+
+/* ---------- 1 scanner ---------- */
+function renderScanner() {
+  const it = dados.itens;
+  const cont = (s) => it.filter((i) => i.situacao === s).length;
+  $("#sTotal").textContent = it.length;
+  $("#sSituacoes").textContent = `${cont("respondeu")} responderam · ${cont("liberado")} contato liberado · ${cont("aguardando")} aguardando · ${cont("importado")} importados`;
+  const comTel = it.filter((i) => (i.telefones || []).length);
+  $("#sTel").textContent = comTel.length;
+  $("#sWpp").textContent = `${comTel.filter((i) => Object.values(i.whats).some((v) => v === true)).length} confirmados no WhatsApp`;
+  $("#sEnv").textContent = it.filter((i) => i.enviados.length).length;
+  $("#sContatos").textContent = `${new Set(it.flatMap((i) => i.telefones || [])).size} números diferentes em data/contatos.json`;
+}
+
+/* ---------- 2 lista ---------- */
+/** Projeto fechado ou cancelado no site (status da conversa ou da página do projeto). */
+const fechado = (i) => /fechad|cancelad/i.test(`${i.status ?? ""} ${i.projetoInfo?.status ?? ""}`);
+
+/**
+ * ▶ play: abre o WhatsApp (app ou web) direto na conversa, com a mensagem pronta.
+ * Você confere e aperta enviar lá — aqui só registra que abriu.
+ */
+/** Caixa "Mensagem enviada?" — espera você voltar do WhatsApp e responder. */
+function perguntarEnviada(it, numero) {
+  $("#confirmaQuem").textContent = `${it.contatoNome || it.cliente || ""} · ${fmtTel(numero)} · ${it.projeto}`;
+  $("#confirma").classList.remove("oculto");
+  return new Promise((ok) => {
+    const fim = (v) => { $("#confirma").classList.add("oculto"); ok(v); };
+    $("#confirmaSim").onclick = () => fim(true);
+    $("#confirmaNao").onclick = () => fim(false);
+  });
+}
+
+/** ▶: abre o WhatsApp com a mensagem pronta; só salva em enviados.json se você disser que enviou. */
+async function abrirManual(it, numero, texto) {
+  const msg = (texto ?? "").trim() || textoDe(it) || preencher(it);
+  if (!numero) { alert("sem número"); return false; }
+  window.open(`https://api.whatsapp.com/send?phone=${numero}&text=${encodeURIComponent(msg)}`, "_blank");
+  salvarTexto(it.id, msg);
+  if (!(await perguntarEnviada(it, numero))) return false;
+  try {
+    await api("/api/marcar-manual", { id: it.id, numero, texto: msg });
+    it.enviados.push({ numero, texto: msg, quando: new Date().toISOString(), manual: true });
+  } catch (e) { alert(`não salvou: ${e.message}`); return false; }
+  renderLista();
+  return true;
+}
+
+/* pastas da etapa 2 — enviados saem da caixa; arquivados ficam à parte (só no painel) */
+let pasta = "caixa";
+const naPasta = (i, p) => p === "enviados" ? i.enviados.length > 0 : p === "arquivados" ? !i.enviados.length && i.arquivado : !i.enviados.length && !i.arquivado;
+function contarPastas() {
+  $("#nCaixa").textContent = dados.itens.filter((i) => naPasta(i, "caixa")).length;
+  $("#nEnviados").textContent = dados.itens.filter((i) => naPasta(i, "enviados")).length;
+  $("#nArquivados").textContent = dados.itens.filter((i) => naPasta(i, "arquivados")).length;
+}
+$$("[data-pasta]").forEach((b) => b.onclick = () => {
+  pasta = b.dataset.pasta;
+  $$("[data-pasta]").forEach((x) => x.classList.toggle("ativo", x === b));
+  $("#bArquivarSel").classList.toggle("oculto", pasta !== "caixa");
+  $("#bDesarquivarSel").classList.toggle("oculto", pasta !== "arquivados");
+  selecionados.clear();
+  renderLista();
+});
+async function arquivar(ids, arquivar = true) {
+  if (!ids.length) return;
+  await api("/api/arquivar", { ids, arquivar });
+  for (const id of ids) { const it = porId(id); if (it) it.arquivado = arquivar; selecionados.delete(id); }
+  renderLista();
+}
+
+function visiveis() {
+  const q = $("#busca").value.trim().toLowerCase();
+  const sit = $("#fSituacao").value;
+  return dados.itens
+    .filter((i) => naPasta(i, pasta))
+    .filter((i) => sit === "com-contato" ? (i.telefones || []).length : !sit || i.situacao === sit)
+    .filter((i) => !$("#fFechados").checked || !fechado(i))
+    .filter((i) => !$("#fWpp").checked || Object.values(i.whats).some((v) => v === true))
+    .filter((i) => {
+      const h = $("#fHistorico").value;
+      if (h === "com") return i.historico?.tem === true;
+      if (h === "sem") return i.historico?.tem === false;
+      if (h === "nao-checado") return !i.historico;
+      if (h === "checado-nao-mandei") return i.historico?.tem === false && !i.enviados.length;
+      return true;
+    })
+    .filter((i) => {
+      const f = $("#fEnvio").value;
+      if (f === "nao-enviei") return !i.enviados.length;
+      if (f === "enviei") return i.enviados.length > 0;
+      if (f === "contato") return !i.enviados.length && i.jaFalamos.length > 0;
+      return true;
+    })
+    .filter((i) => !q || `${i.projeto} ${i.cliente} ${i.contatoNome} ${(i.telefones || []).join(" ")}`.toLowerCase().includes(q))
+    .sort((a, b) => (b.situacao === "respondeu") - (a.situacao === "respondeu") || b.ts - a.ts);
+}
+
+function renderLista() {
+  const lista = visiveis();
+  $("#contagem").textContent = `${lista.length} nesta pasta`;
+  contarPastas();
+  $("#selInfo").textContent = `${selecionados.size} selecionado(s)`;
+  $("#navFila").textContent = selecionados.size ? `(${selecionados.size})` : "";
+  $("#lista").innerHTML = lista.slice(0, 300).map((i) => {
+    const tels = numeros(i);
+    const n = numeroDe(i);
+    const ult = i.enviados.at(-1);
+    const conversa = i.conversa || [];
+    const doCliente = conversa.filter((m) => m.quem === "cliente");
+    const info = i.projetoInfo || {};
+    return `<div class="linha ${i.enviados.length ? "enviado" : ""} ${selecionados.has(i.id) ? "selecionada" : ""}" data-id="${esc(i.id)}">
+      <input type="checkbox" class="sel" ${selecionados.has(i.id) ? "checked" : ""}>
+      ${i.foto ? `<img class="ava" src="${esc(i.foto)}" alt="" loading="lazy">` : '<div class="ava"></div>'}
+      <div>
+        <a class="titulo" href="${esc(i.projetoUrl || i.url || "#")}" target="_blank">${esc(i.projeto)}</a>
+        <div class="sub">${esc(i.contatoNome || i.cliente || "")} · ${dataCurta(i.ts)}${info.orcamento ? ` · ${esc(info.orcamento)}` : ""}</div>
+        <div style="margin-top:4px">${SITUACAO[i.situacao] || ""}
+          ${i.historico?.tem ? `<span class="pill azul">já tem histórico de conversa${i.historico.ultima ? ` · ${new Date(i.historico.ultima).toLocaleDateString("pt-BR")}` : ""}</span>` : ""}
+          ${ult ? `<span class="pill ok">${ult.manual ? "✓ enviado manualmente" : "✓ WhatsApp enviado"} ${new Date(ult.quando).toLocaleDateString("pt-BR")}</span>` : ""}
+          ${i.jaFalamos.length ? `<span class="pill amar" title="${esc(i.jaFalamos.map((p) => p.projeto).join(" | "))}">já mandei pra esse contato em outro projeto (${i.jaFalamos.length})</span>` : ""}</div>
+        ${doCliente.length ? `<div class="m cliente" style="margin-top:6px">${esc(doCliente.at(-1).texto.slice(0, 220))}</div>` : ""}
+        ${ult ? `<div class="sub">WhatsApp enviado ${new Date(ult.quando).toLocaleString("pt-BR")} → ${fmtTel(ult.numero)}</div>` : ""}
+        ${conversa.length ? `<details><summary>conversa (${conversa.length})</summary><div class="msgs">${conversaHtml(conversa)}</div></details>` : ""}
+        ${info.descricao ? `<details><summary>projeto</summary><div class="desc">${esc(info.descricao)}</div></details>` : ""}
+      </div>
+      <div>
+        <textarea class="msg" rows="4" placeholder="mensagem…">${esc(textos[i.id] ?? i.rascunho ?? "")}</textarea>
+        <div class="acoes-msg">
+          <button class="bIa" ${ocupado.has(i.id) ? "disabled" : ""}>${ocupado.has(i.id) ? "gerando…" : "IA"}</button>
+          <button class="bMinha">Minha msg</button>
+          <button class="bArquivar" title="${i.arquivado ? "volta pra caixa de entrada" : "tira da caixa de entrada"}">${i.arquivado ? "Desarquivar" : "Arquivar"}</button>
+        </div>
+      </div>
+      <div>
+        ${tels.length ? tels.map((t) => `<label class="tel"><input type="radio" name="n-${esc(i.id)}" value="${t}" ${t === n ? "checked" : ""}>
+            ${fmtTel(t)} ${i.whats[t] === true ? '<span class="pill ok">WhatsApp</span>' : i.whats[t] === false ? '<span class="pill no">sem WhatsApp</span>' : '<span class="sub">?</span>'}</label>`).join("")
+          : `<span class="sub">${i.situacao === "aguardando" ? "aguardando o cliente responder ou o site liberar o contato" : "contato não achado"}</span>`}
+        ${i.email ? `<div class="sub">${esc(i.email)}</div>` : ""}
+        ${i.fonteTelefone ? `<div class="sub">fonte: ${i.fonteTelefone === "cliente" ? "mensagem do cliente" : "liberado pelo site"}</div>` : ""}
+        ${tels.length ? `<button class="enviar bPlay" style="margin-top:6px" title="abre o WhatsApp nesta conversa com a mensagem pronta — você confere e envia">▶ abrir no WhatsApp</button>` : ""}
+      </div>
+    </div>`;
+  }).join("") + (lista.length > 300 ? `<p class="sub">mostrando 300 de ${lista.length} — filtre pra ver o resto (a seleção por período pega todos)</p>` : "");
+}
+
+$("#lista").addEventListener("input", (e) => {
+  if (e.target.classList.contains("msg")) textos[e.target.closest(".linha").dataset.id] = e.target.value;
+});
+$("#lista").addEventListener("change", (e) => {
+  const id = e.target.closest(".linha")?.dataset.id;
+  if (e.target.classList.contains("sel")) { e.target.checked ? selecionados.add(id) : selecionados.delete(id); renderLista(); }
+  if (e.target.type === "radio") { numeroEscolhido[id] = e.target.value; }
+  if (e.target.classList.contains("msg")) salvarTexto(id, e.target.value);
+});
+$("#lista").addEventListener("click", async (e) => {
+  const it = porId(e.target.closest(".linha")?.dataset.id);
+  if (!it) return;
+  if (e.target.classList.contains("bMinha")) { salvarTexto(it.id, preencher(it)); renderLista(); }
+  if (e.target.classList.contains("bArquivar")) await arquivar([it.id], !it.arquivado);
+  if (e.target.classList.contains("bIa")) await gerar(it);
+  if (e.target.classList.contains("bPlay")) {
+    const numero = e.target.closest(".linha").querySelector("input[type=radio]:checked")?.value || numeroDe(it);
+    await abrirManual(it, numero, e.target.closest(".linha").querySelector("textarea.msg")?.value);
+  }
+});
+
+async function gerar(it) {
+  ocupado.add(it.id); renderLista();
+  try { salvarTexto(it.id, (await api("/api/rascunho", { id: it.id })).texto); }
+  catch (err) { alert(`IA: ${err.message}`); }
+  finally { ocupado.delete(it.id); renderLista(); }
+}
+
+function selecionar(filtro) { for (const i of visiveis()) if (filtro(i)) selecionados.add(i.id); renderLista(); }
+$$("[data-sel]").forEach((b) => b.onclick = () => {
+  const v = b.dataset.sel;
+  if (v === "nenhum") { selecionados.clear(); return renderLista(); }
+  if (v === "todos") return selecionar(() => true);
+  const limite = Date.now() / 1000 - Number(v) * 86400;
+  selecionar((i) => i.ts >= limite);
+});
+$("#bSelPeriodo").onclick = () => {
+  const de = $("#selDe").value ? new Date($("#selDe").value + "T00:00").getTime() / 1000 : 0;
+  const ate = $("#selAte").value ? new Date($("#selAte").value + "T23:59:59").getTime() / 1000 : Infinity;
+  selecionar((i) => i.ts >= de && i.ts <= ate);
+};
+const itensSel = () => dados.itens.filter((i) => selecionados.has(i.id));
+$("#bArquivarSel").onclick = () => arquivar([...selecionados], true);
+$("#bDesarquivarSel").onclick = () => arquivar([...selecionados], false);
+$("#bArquivarAntigos").onclick = async () => {
+  const ontem = new Date(); ontem.setDate(ontem.getDate() - 1); ontem.setHours(0, 0, 0, 0);
+  const qtd = dados.itens.filter((i) => i.ts < ontem.getTime() / 1000 && !i.enviados.length && !i.arquivado).length;
+  if (!confirm(`Arquivar ${qtd} conversas de antes de ${ontem.toLocaleDateString("pt-BR")} que nunca receberam WhatsApp?
+(Só no painel; dá pra desarquivar depois.)`)) return;
+  const r = await api("/api/arquivar-antigos", { antesDe: ontem.toISOString() });
+  alert(`${r.arquivados} arquivadas.`);
+  atualizar(true);
+};
+$("#bMinhaSel").onclick = () => { for (const i of itensSel()) salvarTexto(i.id, preencher(i)); renderLista(); };
+$("#bIaSel").onclick = async () => { for (const i of itensSel()) await gerar(i); };
+$("#bIrEnviar").onclick = () => { montarFila(); irPara("enviar"); };
+for (const f of ["#busca", "#fSituacao", "#fFechados", "#fWpp", "#fHistorico", "#fEnvio"]) $(f).addEventListener("input", renderLista);
+
+/* ---------- 3 enviador semi-automático ---------- */
+const envio = { fila: [], pos: 0, rodando: false, pausado: false, restante: 0, resultado: {}, acao: null };
+
+function montarFila() {
+  if (envio.rodando) return;
+  envio.fila = itensSel().filter((i) => (i.telefones || []).length).sort((a, b) => b.ts - a.ts).map((i) => i.id);
+  envio.pos = 0; envio.resultado = {};
+  salvarFila();
+  renderEnvio();
+}
+/** Fila em data/fila-envio.json — recarregar ou fechar o painel não perde onde parou. */
+function salvarFila() { api("/api/fila", { fila: envio.fila, pos: envio.pos, resultado: envio.resultado }).catch(() => {}); }
+async function restaurarFila() {
+  try {
+    const f = await api("/api/fila");
+    if (!f.fila?.length || envio.rodando) return;
+    const pendentes = f.fila.filter((id) => !f.resultado?.[id]).length;
+    if (!pendentes) return;
+    envio.fila = f.fila; envio.pos = Math.min(f.pos || 0, f.fila.length); envio.resultado = f.resultado || {};
+    // se parou no fim mas ainda há pendentes antes, volta pro primeiro pendente
+    const primeiro = envio.fila.findIndex((id) => !envio.resultado[id]);
+    if (primeiro >= 0) envio.pos = Math.min(envio.pos, primeiro);
+    log(`fila salva restaurada: ${pendentes} pendentes de ${f.fila.length} — clique Continuar`);
+    renderEnvio();
+  } catch {}
+}
+function renderEnvio() {
+  const n = envio.fila.length;
+  const sem = Math.max(0, itensSel().length - n);
+  $("#eResumo").textContent = n ? `${n} na fila${sem > 0 ? ` (${sem} selecionados sem telefone ficaram fora)` : ""}` : "fila vazia";
+  $("#eVazio").classList.toggle("oculto", n > 0);
+  $("#eIniciar").disabled = !n || envio.rodando;
+  $("#eIniciar").textContent = envio.pos > 0 && envio.pos < n ? "Continuar" : "Iniciar";
+  $("#eFila").innerHTML = envio.fila.map((id, k) => `<span class="${envio.resultado[id] || ""} ${k === envio.pos && envio.rodando ? "atual" : ""}" title="${esc(porId(id)?.projeto)}"></span>`).join("");
+}
+function log(txt) { $("#eLog").insertAdjacentHTML("afterbegin", `<div>${new Date().toLocaleTimeString("pt-BR")} — ${esc(txt)}</div>`); }
+
+async function carregarRevisao(it) {
+  $("#eRevisao").classList.remove("oculto");
+  $("#rFotoSite").src = it.foto || ""; $("#rFotoSite").classList.toggle("oculto", !it.foto);
+  $("#rFotoWpp").classList.add("oculto");
+  const info = it.projetoInfo || {};
+  $("#rCliente").innerHTML = `<b>${esc(it.contatoNome || it.cliente || "")}</b>${it.cliente && it.contatoNome && it.cliente !== it.contatoNome ? ` <span class="sub">(${esc(it.cliente)} no site)</span>` : ""}
+    <div>${SITUACAO[it.situacao] || ""}</div>${it.email ? `<div class="sub">${esc(it.email)}</div>` : ""}
+    ${it.url ? `<button id="rAbrirConversa" style="margin-top:6px">abrir conversa no Chrome</button>` : ""}
+    ${it.perfil ? `<button id="rAbrirPerfil" style="margin-top:6px">perfil</button>` : ""}`;
+  const alertas = [];
+  if (it.enviados.length) alertas.push(`Você já mandou WhatsApp pra ESTE projeto em ${new Date(it.enviados.at(-1).quando).toLocaleString("pt-BR")}.`);
+  if (it.jaFalamos.length) alertas.push(`Já falou com este contato sobre: ${it.jaFalamos.map((p) => p.projeto).join(" · ")}`);
+  $("#rAlerta").innerHTML = alertas.map((a) => `<div class="alerta">${esc(a)}</div>`).join("");
+  $("#rProjeto").innerHTML = `<a class="titulo" href="${esc(it.projetoUrl || "#")}" target="_blank">${esc(it.projeto)}</a>
+    <div class="sub">${[info.orcamento, info.status, info.postadoEm].filter(Boolean).map(esc).join(" · ")}</div>
+    ${info.descricao ? `<div class="desc" style="margin-top:6px">${esc(info.descricao)}</div>` : ""}`;
+  $("#rConversa").innerHTML = conversaHtml(it.conversa || []) || '<span class="sub">sem conversa (importado)</span>';
+  $("#rNumeros").innerHTML = numeros(it).map((t) => `<label class="tel"><input type="radio" name="rnum" value="${t}" ${t === numeroDe(it) ? "checked" : ""}>
+    ${fmtTel(t)} ${it.whats[t] === true ? '<span class="pill ok">WhatsApp</span>' : it.whats[t] === false ? '<span class="pill no">sem WhatsApp</span>' : '<span class="sub">?</span>'}</label>`).join("");
+  $("#rMsg").value = textoDe(it) || preencher(it);
+  $("#rWhats").innerHTML = '<span class="sub">carregando…</span>';
+  $("#rAbrirConversa")?.addEventListener("click", () => api("/api/abrir-no-chrome", { url: it.url }).catch((e) => alert(e.message)));
+  $("#rAbrirPerfil")?.addEventListener("click", () => api("/api/abrir-no-chrome", { url: it.perfil }).catch((e) => alert(e.message)));
+  try {
+    const r = await api("/api/revisar", { id: it.id, numero: numeroDe(it) });
+    if (r.fotoWhats) { $("#rFotoWpp").src = r.fotoWhats; $("#rFotoWpp").classList.remove("oculto"); }
+    $("#rWhats").innerHTML = r.historicoWhats.length
+      ? r.historicoWhats.map((m) => `<div class="m ${m.deMim ? "meu" : "dele"}"><span class="sub">${m.deMim ? "eu" : "cliente"} · ${m.quando ? new Date(m.quando).toLocaleString("pt-BR") : ""}</span>\n${esc(m.texto)}</div>`).join("")
+      : '<span class="sub">nenhuma mensagem com este número no WhatsApp</span>';
+    if (r.historicoWhats.length) $("#rAlerta").insertAdjacentHTML("beforeend", `<div class="alerta">Já existe conversa no WhatsApp com este número (${r.historicoWhats.length} mensagens).</div>`);
+  } catch (e) { $("#rWhats").innerHTML = `<span class="sub">não deu pra ler o WhatsApp: ${esc(e.message)}</span>`; }
+}
+
+$("#rNumeros").addEventListener("change", (e) => { const it = porId(envio.fila[envio.pos]); if (it && e.target.name === "rnum") { pausar(true); numeroEscolhido[it.id] = e.target.value; carregarRevisao(it); } });
+$("#rMsg").addEventListener("input", () => { const it = porId(envio.fila[envio.pos]); if (it) textos[it.id] = $("#rMsg").value; if (!envio.pausado) pausar(true); });
+$("#rIa").onclick = async () => {
+  const it = porId(envio.fila[envio.pos]); if (!it) return;
+  pausar(true); $("#rIa").disabled = true; $("#rIa").textContent = "gerando…";
+  try { const t = (await api("/api/rascunho", { id: it.id })).texto; $("#rMsg").value = t; salvarTexto(it.id, t); } catch (e) { alert(e.message); }
+  $("#rIa").disabled = false; $("#rIa").textContent = "IA";
+};
+$("#rMinha").onclick = () => { const it = porId(envio.fila[envio.pos]); if (it) { $("#rMsg").value = preencher(it); textos[it.id] = $("#rMsg").value; } };
+
+function pausar(valor) {
+  envio.pausado = typeof valor === "boolean" ? valor : !envio.pausado;
+  $("#rPausar").textContent = envio.pausado ? "Retomar" : "Pausar";
+  $("#rContador").classList.toggle("pausado", envio.pausado);
+  $("#rContador").textContent = envio.pausado ? `pausado (${envio.restante}s)` : `${envio.restante}s`;
+}
+$("#rPausar").onclick = () => pausar(!envio.pausado);
+// na revisão: abre na mão e conta como "resolvido" — o enviador segue pro próximo
+$("#rPlay").onclick = async () => {
+  const it = porId(envio.fila[envio.pos]); if (!it) return;
+  pausar(true);
+  // "sim" → conta como enviado e vai pro próximo; "não" → fica pausado neste cliente
+  if (await abrirManual(it, $("input[name=rnum]:checked")?.value || numeroDe(it), $("#rMsg").value)) envio.acao = "manual";
+};
+$("#rEnviar").onclick = () => { envio.acao = "enviar"; };
+$("#rPular").onclick = () => { envio.acao = "pular"; };
+$("#rParar").onclick = () => { envio.acao = "parar"; };
+
+/** Espera a contagem (ou um botão). Devolve "enviar" | "pular" | "parar". */
+async function aguardarDecisao(segundos) {
+  envio.restante = segundos; envio.acao = null; pausar(false);
+  while (true) {
+    for (let t = 0; t < 10; t++) { if (envio.acao) return envio.acao; await dorme(100); }
+    if (envio.pausado) { $("#rContador").textContent = `pausado (${envio.restante}s)`; continue; }
+    envio.restante--;
+    $("#rContador").textContent = `${envio.restante}s`;
+    if (envio.restante <= 0) return "enviar";
+  }
+}
+
+$("#eIniciar").onclick = async () => {
+  if (!envio.fila.length) return;
+  api("/api/config", { intervaloMin: Number($("#intMin").value) || 10, intervaloMax: Number($("#intMax").value) || 20 });
+  envio.rodando = true; renderEnvio();
+  for (; envio.pos < envio.fila.length; envio.pos++, salvarFila()) {
+    const it = porId(envio.fila[envio.pos]);
+    if (!it || envio.resultado[it.id]) continue;
+    renderEnvio();
+    $("#eStatus").textContent = `${envio.pos + 1} de ${envio.fila.length}`;
+    await carregarRevisao(it);
+    const min = Math.max(3, Number($("#intMin").value) || 10), max = Math.max(min, Number($("#intMax").value) || min);
+    // quem já recebeu ou já conversou começa pausado: você decide
+    const segundos = Math.round(min + Math.random() * (max - min));
+    const decisaoP = aguardarDecisao(segundos);
+    if (it.enviados.length || it.jaFalamos.length || it.historico?.tem) pausar(true);
+    const decisao = await decisaoP;
+    if (decisao === "parar") { log("parado"); break; }
+    if (decisao === "manual") { envio.resultado[it.id] = "enviado"; selecionados.delete(it.id); log(`✓ enviado manualmente: ${it.contatoNome || it.cliente} — ${it.projeto}`); continue; }
+    if (decisao === "pular") { envio.resultado[it.id] = "pulado"; log(`pulado: ${it.contatoNome || it.cliente} — ${it.projeto}`); continue; }
+    const texto = $("#rMsg").value.trim();
+    const numero = $("input[name=rnum]:checked")?.value || numeroDe(it);
+    if (!texto) { envio.resultado[it.id] = "pulado"; log(`pulado (mensagem vazia): ${it.projeto}`); continue; }
+    $("#rContador").textContent = "enviando…";
+    try {
+      await api("/api/enviar", { id: it.id, numero, texto });
+      it.enviados.push({ numero, texto, quando: new Date().toISOString() });
+      envio.resultado[it.id] = "enviado"; selecionados.delete(it.id);
+      log(`enviado → ${fmtTel(numero)} ${it.contatoNome || it.cliente} — ${it.projeto}`);
+    } catch (e) {
+      envio.resultado[it.id] = "falhou"; log(`FALHOU ${fmtTel(numero)}: ${e.message}`);
+    }
+  }
+  envio.rodando = false;
+  salvarFila();
+  if (envio.pos >= envio.fila.length) { $("#eRevisao").classList.add("oculto"); $("#eStatus").textContent = "fila terminada"; }
+  renderEnvio(); renderLista();
+};
+
+/* ---------- projetos novos ---------- */
+function pVisiveis() { return (dados.projetosNovos.itens || []).filter((p) => !$("#pEsconder").checked || !(p.jaInteressado || p.interesse?.ok)); }
+function pRender() {
+  const pn = dados.projetosNovos;
+  const lt = pn.lote;
+  if (lt) {
+    const pct = lt.total ? Math.round((100 * lt.feitos) / lt.total) : null;
+    // total cresce enquanto capta: sem % até a captação acabar
+    barra($("#pLoteProg"), true, lt.rodando && pn.lendo ? null : lt.rodando ? pct : 100,
+      `${lt.ok} interesses enviados · ${lt.feitos} de ${lt.total || "?"} na rodada · ${lt.naFila ?? 0} na fila · ${lt.falhas} falhas` +
+      (pn.lendo ? ` · captando página ${pn.lendo.pagina ?? "…"}` : ""));
+    const abasTxt = Object.entries(lt.abas || {}).map(([n, t]) => `aba ${n}: ${t}`).join(" · ");
+    $("#pLoteInfo").textContent = (lt.atual || "") + (abasTxt ? ` — ${abasTxt}` : "") + (lt.erros?.length ? ` · última falha: ${lt.erros.at(-1)}` : "");
+  }
+  $("#bInteresseTodos").disabled = !!lt?.rodando;
+  $("#bInteresseParar").classList.toggle("oculto", !lt?.rodando);
+  $("#pStatus").textContent = pn.lendo?.erro ? `erro: ${pn.lendo.erro}` : pn.lendo ? `lendo projetos… página ${pn.lendo.pagina ?? 0} · ${pn.lendo.projetos ?? 0} projetos` : pn.lidoEm ? `lido ${new Date(pn.lidoEm).toLocaleString("pt-BR")} — ${pn.itens.length} projetos` : "clique em Ler projetos";
+  $("#bLerProjetos").disabled = !!(pn.lendo && !pn.lendo.erro);
+  $("#pSelInfo").textContent = `${pSelecionados.size} selecionado(s)`;
+  $("#pLista").innerHTML = pVisiveis().map((p) => `<div class="linha ${pSelecionados.has(p.id) ? "selecionada" : ""}" data-id="${esc(p.id)}" style="grid-template-columns:24px 1fr 200px 160px">
+      <input type="checkbox" class="psel" ${pSelecionados.has(p.id) ? "checked" : ""}>
+      <div><a class="titulo" href="${esc(p.url)}" target="_blank">${esc(p.titulo)}</a>
+        <div class="sub">${esc(p.categoria || "")} · ${esc(p.local || "")} · ${esc(p.quando || "")}</div></div>
+      <div><b>${esc(p.orcamento || "")}</b><div class="sub">${p.interessados} interessados · ${esc(p.status || "")}</div></div>
+      <div>${p.jaInteressado || p.interesse?.ok ? '<span class="pill ok">interesse enviado</span>' : `<button class="bInteresse">Enviar interesse</button>`}</div>
+    </div>`).join("") || '<p class="sub">nada aqui</p>';
+}
+$("#pLista").addEventListener("change", (e) => {
+  const id = e.target.closest(".linha")?.dataset.id;
+  if (e.target.classList.contains("psel")) { e.target.checked ? pSelecionados.add(id) : pSelecionados.delete(id); pRender(); }
+});
+async function interesseUm(p) { await api("/api/interesse", { id: p.id, mensagem: $("#msgInteresse").value }); p.jaInteressado = true; pSelecionados.delete(p.id); }
+$("#pLista").addEventListener("click", async (e) => {
+  if (!e.target.classList.contains("bInteresse")) return;
+  const p = dados.projetosNovos.itens.find((x) => x.id === e.target.closest(".linha").dataset.id);
+  e.target.disabled = true; e.target.textContent = "enviando…";
+  try { await interesseUm(p); } catch (err) { alert(err.message); }
+  pRender();
+});
+$("#pEsconder").onchange = pRender;
+$("#pSelTodos").onclick = () => { for (const p of pVisiveis()) if (!p.jaInteressado) pSelecionados.add(p.id); pRender(); };
+$("#pSelNenhum").onclick = () => { pSelecionados.clear(); pRender(); };
+$("#bLerProjetos").onclick = async () => { await api("/api/projetos", { paginas: Math.max(0, Number($("#pPaginas").value) || 0), busca: $("#pBusca").value }); atualizar(); };
+$("#bContinuarProjetos").onclick = async () => { await api("/api/projetos", { paginas: Math.max(0, Number($("#pPaginas").value) || 0), busca: $("#pBusca").value, continuar: true }); atualizar(); };
+$("#bInteresseTodos").onclick = async () => {
+  const abertos = (dados.projetosNovos.itens || []).filter((p) => !p.jaInteressado && !p.interesse?.ok && !/fechad|cancelad/i.test(p.status || ""));
+  const min = Number($("#pIntMin").value) || 15, max = Math.max(min, Number($("#pIntMax").value) || min);
+  const paginas = Math.max(0, Number($("#pPaginas").value) || 0);
+  const abas = Math.max(1, Math.min(8, Number($("#pAbas").value) || 4));
+  if (!confirm(`Captar ${paginas ? paginas + " páginas" : "TODAS as páginas"} de projetos abertos e, ao mesmo tempo, mandar interesse em todos com ${abas} abas (${min}–${max}s de pausa em cada aba).\nJá começa com ${abertos.length} da lista salva.\n\nRoda no servidor, pode fechar o painel. Para sozinho com 5 falhas seguidas.`)) return;
+  await api("/api/interesse-todos", { mensagem: $("#msgInteresse").value, min, max, escanear: true, paginas, abas });
+  atualizar(true);
+};
+$("#bInteresseParar").onclick = () => api("/api/interesse-parar", {}).then(() => atualizar(true));
+$("#bInteresseSel").onclick = async () => {
+  const alvo = dados.projetosNovos.itens.filter((p) => pSelecionados.has(p.id) && !p.jaInteressado);
+  if (!alvo.length) return alert("Selecione projetos.");
+  const min = Number($("#pIntMin").value) || 0, max = Math.max(min, Number($("#pIntMax").value) || 0);
+  if (!confirm(`Enviar interesse em ${alvo.length} projeto(s), com ${min}–${max}s entre cada um?`)) return;
+  let ok = 0, falhas = 0;
+  for (const [k, p] of alvo.entries()) {
+    $("#pLoteStatus").textContent = `${k + 1}/${alvo.length}: ${p.titulo}`;
+    try { await interesseUm(p); ok++; } catch { falhas++; }
+    pRender();
+    if (k < alvo.length - 1) { const s = Math.round(min + Math.random() * (max - min)); for (let r = s; r > 0; r--) { $("#pLoteStatus").textContent = `${ok} ok, ${falhas} falhas — próximo em ${r}s`; await dorme(1000); } }
+  }
+  $("#pLoteStatus").textContent = `fim: ${ok} ok, ${falhas} falhas`;
+};
+
+/* ---------- importar ---------- */
+$("#jArquivo").onchange = async (e) => { const f = e.target.files[0]; if (f) $("#jTexto").value = await f.text(); };
+$("#bImportar").onclick = async () => {
+  try {
+    const r = await api("/api/importar", JSON.parse($("#jTexto").value));
+    $("#jStatus").textContent = `${r.importados} importado(s) — veja na etapa 2, filtro "importados"`;
+    await atualizar(true);
+  } catch (err) { $("#jStatus").textContent = `erro: ${err.message}`; }
+};
+
+/* ---------- config / topo ---------- */
+let tCfg;
+for (const campo of ["minhaMsg", "minhaMsgRetorno", "msgInteresse"]) {
+  $("#" + campo).addEventListener("input", (e) => { clearTimeout(tCfg); tCfg = setTimeout(() => api("/api/config", { [campo]: e.target.value }), 600); });
+}
+const scanner = (corpo) => api("/api/scanner", corpo).then(() => atualizar()).catch((e) => alert(e.message));
+$("#bIndexar").onclick = () => scanner({ modo: "novidades" });
+$("#bIndexarTudo").onclick = () => scanner({ modo: "tudo" });
+$("#bContinuar").onclick = () => scanner({ modo: "continuar" });
+$("#bPararScan").onclick = () => api("/api/scanner-parar", {}).then(() => atualizar(true));
+$("#bPararTudo").onclick = () => api("/api/parar-tudo", {}).then(() => atualizar(true));
+$("#fases").addEventListener("click", (e) => { const f = e.target.dataset?.fase; if (f) scanner({ modo: "continuar", so: f }); });
+
+const NOMES_FASE = { listar: "1. Listar conversas (Próximo)", conversas: "2. Ler conversas", projetos: "3. Ler projetos" };
+function renderFases() {
+  const sc = dados.scanner || {};
+  const ativo = sc.rodando;
+  const fases = sc.scan?.fases || {};
+  const pend = sc.pendentes || {};
+  const extra = { listar: "", conversas: `${pend.conversas ?? 0} pendentes`, projetos: `${pend.projetos ?? 0} pendentes` };
+  $("#fases").innerHTML = Object.keys(NOMES_FASE).map((f) => {
+    const st = ativo?.fase === f ? "rodando" : fases[f] || "—";
+    const cls = st === "ok" ? "ok" : st === "rodando" ? "azul" : String(st).startsWith("erro") ? "no" : "";
+    return `<div class="caixa"><b>${NOMES_FASE[f]}</b> <span class="pill ${cls}">${esc(st.length > 60 ? st.slice(0, 60) + "…" : st)}</span>
+      <div class="sub">${extra[f]}</div>
+      <button data-fase="${f}" ${ativo ? "disabled" : ""} style="margin-top:6px">rodar só esta</button></div>`;
+  }).join("");
+}
+$("#bHistorico").onclick = async () => {
+  $("#bHistorico").disabled = true; $("#histStatus").textContent = "checando…";
+  try {
+    const r = await api("/api/checar-historico", {});
+    $("#histStatus").textContent = `${r.checados} números checados — ${r.comHistorico} já têm histórico de conversa`;
+  } catch (e) { $("#histStatus").textContent = `erro: ${e.message}`; }
+  $("#bHistorico").disabled = false; atualizar(true);
+};
+$("#bChecar").onclick = async () => { $("#bChecar").disabled = true; try { await api("/api/checar-whatsapp", {}); } catch (e) { alert(e.message); } $("#bChecar").disabled = false; atualizar(); };
+$("#bConectar").onclick = async () => {
+  const r = await api("/api/conectar", {});
+  if (r.qr) { $("#qr").classList.remove("oculto"); $("#qr img").src = r.qr; }
+  if (r.codigo) alert(`Código de pareamento: ${r.codigo}`);
+};
+
+/** Barra: pct null = sem total conhecido (vaivém). */
+function barra(el, visivel, pct, texto) {
+  el.classList.toggle("oculto", !visivel);
+  el.classList.toggle("indef", visivel && pct == null);
+  $("i", el).style.width = pct != null ? `${Math.min(100, pct)}%` : "";
+  $("span", el).textContent = texto;
+}
+
+/* histórico do WhatsApp chegando na Evolution (depois de escanear o QR com histórico completo) */
+let histAnterior = null, histParado = 0;
+async function atualizarHistorico() {
+  try {
+    const h = await api("/api/historico-status");
+    if (!h.conectado) { barra($("#histProg"), false); $("#histInfo").textContent = ""; return; }
+    // enquanto o número de mensagens sobe, o histórico ainda está chegando
+    const chegando = histAnterior != null && h.mensagens > histAnterior;
+    histParado = chegando ? 0 : histParado + 1;
+    histAnterior = h.mensagens;
+    const pct = h.totalClientes ? Math.round((100 * h.dosClientes) / h.totalClientes) : 0;
+    barra($("#histProg"), true, histParado >= 6 ? pct : chegando || histParado < 6 ? null : pct,
+      `${h.dosClientes} de ${h.totalClientes} clientes já têm histórico no WhatsApp`);
+    $("#histInfo").textContent = `${h.contatos} contatos, ${h.conversas} conversas, ${h.mensagens ?? "?"} mensagens recebidas na Evolution — ` +
+      (histParado >= 6 ? "parou de chegar (sincronização concluída)" : "histórico chegando…");
+  } catch { /* Evolution fora: tenta de novo no próximo ciclo */ }
+}
+atualizarHistorico();
+setInterval(atualizarHistorico, 10000);
+
+/* ---------- IA em lotes ---------- */
+function renderIA(primeira) {
+  const ia = dados.projetosNovos?.ia;
+  if (primeira && !$("#iaPerfil").value) $("#iaPerfil").value = dados.config.perfil || "";
+  const rod = !!ia?.rodando;
+  $("#bIaIniciar").disabled = rod || !!dados.projetosNovos?.lote?.rodando;
+  $("#bIaParar").classList.toggle("oculto", !rod);
+  if (ia) {
+    barra($("#iaProg"), true, rod ? null : 100,
+      `rodada ${ia.rodada} · ${ia.analisados} analisados · ${ia.enviados} interesses enviados · ${ia.descartados} descartados · ${ia.falhas} falhas`);
+    $("#iaInfo").textContent = (ia.fase && rod ? `[${ia.fase}] ` : "") + (ia.atual || "") + (ia.erros?.length ? ` · última falha: ${ia.erros.at(-1)}` : "");
+  }
+  const lista = dados.projetosNovos?.analises || [];
+  $("#iaAnalises").innerHTML = lista.map((a) => {
+    const cor = a.erro ? "no" : a.pulado ? "" : a.encaixa ? "ok" : "amar";
+    const selo = a.erro ? "erro" : a.pulado ? a.pulado : `nota ${a.nota}`;
+    const env = a.enviado ? '<span class="pill ok">interesse enviado</span>' : a.erroEnvio ? `<span class="pill no">falhou: ${esc(a.erroEnvio.slice(0, 60))}</span>` : "";
+    return `<div class="m ${a.encaixa ? "meu" : "eu"}"><span class="pill ${cor}">${esc(selo)}</span> ${env} <a class="titulo" href="${esc(a.url)}" target="_blank">${esc(a.titulo)}</a>
+      ${a.orcamento ? `<span class="sub"> · ${esc(a.orcamento)}</span>` : ""}
+      ${a.motivo ? `<div class="sub">${esc(a.motivo)}</div>` : ""}${a.erro ? `<div class="sub">${esc(a.erro)}</div>` : ""}
+      ${a.encaixa && a.mensagem ? `<div>${esc(a.mensagem)}</div>` : ""}</div>`;
+  }).join("") || '<span class="sub">nenhuma análise ainda</span>';
+}
+$("#bIaIniciar").onclick = async () => {
+  const b = { perfil: $("#iaPerfil").value, tamanho: Number($("#iaTamanho").value) || 10, notaMin: Number($("#iaNota").value) || 6, min: Number($("#iaMin").value) || 20, max: Number($("#iaMax").value) || 50 };
+  if (!confirm(`IA em lotes: analisa ${b.tamanho} projetos por vez e manda interesse (com a mensagem da IA) nos que tiverem nota ≥ ${b.notaMin}. Repete até você parar.
+Roda no servidor, pode fechar o painel.`)) return;
+  try { await api("/api/ia-lotes", b); } catch (e) { alert(e.message); }
+  atualizar(true);
+};
+$("#bIaParar").onclick = () => api("/api/ia-parar", {}).then(() => atualizar(true));
+
+function assinatura(d) {
+  return JSON.stringify([d.itens.map((i) => [i.id, i.ultimaMsg, i.enviados.length, i.rascunho, i.whats, i.jaFalamos.length, i.historico?.tem, i.arquivado]), d.projetosNovos.lidoEm, d.projetosNovos.lendo, d.projetosNovos.lote]);
+}
+async function atualizar(forcar) {
+  const novo = await api("/api/dados");
+  const mudou = assinatura(novo) !== assinatura(dados);
+  dados = novo;
+  const w = String(dados.whatsapp);
+  for (const el of [$("#wpp"), $("#wpp2")]) { el.textContent = w; el.className = "pill " + (w === "conectado" ? "ok" : "no"); }
+  $("#bConectar").classList.toggle("oculto", w === "conectado");
+  if (w === "conectado") $("#qr").classList.add("oculto");
+  const sc = dados.scanner || {}, rod = sc.rodando, ult = sc.ultimo;
+  const txt = rod ? `escaneando (${rod.fase ?? "…"}) · ${rod.msg ?? ""} · ${Math.round((Date.now() - rod.desde) / 1000)}s`
+    : ult?.erro ? `parou em ${ult.erro} — clique Continuar` : ult?.fim ? `escaneado ${new Date(ult.fim).toLocaleTimeString("pt-BR")}` : "";
+  $("#idxStatus").textContent = txt; $("#idxMini").textContent = txt;
+  for (const b of ["#bIndexar", "#bIndexarTudo", "#bContinuar"]) $(b).disabled = !!rod;
+  $("#bPararScan").classList.toggle("oculto", !rod);
+  $("#bPararTudo").classList.toggle("oculto", !rod && !dados.projetosNovos?.lote?.rodando && !dados.projetosNovos?.ia?.rodando);
+  renderFases();
+  // barra do scanner (e a fininha do topo): % quando dá pra saber o total, vaivém quando não
+  const pr = rod?.progresso;
+  const pct = pr?.total ? Math.round((100 * pr.feitas) / pr.total) : null;
+  const rotulo = !rod ? "" : rod.fase === "listar" ? `1/3 listando conversas — ${pr?.feitas ?? 0} vistas`
+    : rod.fase === "conversas" ? `2/3 lendo conversas — ${pr?.feitas ?? 0} de ${pr?.total ?? "?"}${pct != null ? ` (${pct}%)` : ""}`
+    : rod.fase === "projetos" ? `3/3 lendo projetos — ${pr?.feitas ?? 0} de ${pr?.total ?? "?"}${pct != null ? ` (${pct}%)` : ""}` : "começando…";
+  barra($("#scanProg"), !!rod, pct, rotulo);
+  $("#topoProg").classList.toggle("oculto", !rod);
+  $("#topoProg").classList.toggle("indef", !!rod && pct == null);
+  $("#topoProg > i").style.width = pct != null ? `${pct}%` : "";
+  const sv = sc.salvo;
+  $("#salvo").innerHTML = (sv
+    ? `💾 salvo em disco às <b>${new Date(sv.quando).toLocaleTimeString("pt-BR")}</b> — ${sv.conversas} conversas, ${sv.lidas} lidas, <b>${sv.comTelefone} com telefone</b>. Pode reiniciar: ele continua de onde parou. `
+    : "💾 tudo fica salvo em data/ a cada página — pode reiniciar sem perder. ") + '<a href="/contatos.csv">baixar contatos.csv</a>';
+  if (forcar === true) {
+    for (const c of ["minhaMsg", "minhaMsgRetorno", "msgInteresse"]) $("#" + c).value = dados.config[c] || "";
+    $("#intMin").value = dados.config.intervaloMin; $("#intMax").value = dados.config.intervaloMax;
+  }
+  renderScanner();
+  renderIA(forcar === true);
+  if (forcar === true || mudou) {
+    if (!document.activeElement?.matches("textarea")) renderLista();
+    pRender();
+    if (!envio.rodando) renderEnvio();
+  }
+}
+atualizar(true).then(restaurarFila);
+setInterval(() => atualizar().catch(() => {}), 4000);
+</script>
+</body>
+</html>

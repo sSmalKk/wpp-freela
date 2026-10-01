@@ -1,0 +1,14 @@
+{
+  "name": "wpp-freela",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Lê o cliente do site de freelancer no Chrome (debug) e responde pelo WhatsApp via Evolution do Publiva.",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env src/servidor.mjs",
+    "status": "node --env-file-if-exists=.env src/cli.mjs status",
+    "conectar": "node --env-file-if-exists=.env src/cli.mjs conectar",
+    "enviar": "node --env-file-if-exists=.env src/cli.mjs enviar"
+  }
+}
