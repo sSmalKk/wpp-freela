@@ -73,6 +73,11 @@
   .prog > span { position: relative; display: block; text-align: center; font-size: 12px; font-weight: 600; line-height: 20px; mix-blend-mode: difference; color: #fff; }
   .prog.indef > i { width: 35% !important; animation: vaivem 1.4s ease-in-out infinite alternate; }
   @keyframes vaivem { from { left: 0; } to { left: 65%; } }
+  #processos { display: grid; gap: 6px; margin-bottom: 12px; }
+  #processos:empty { display: none; }
+  #processos .proc { display: grid; grid-template-columns: 220px 1fr; gap: 10px; align-items: center; }
+  #processos .proc .prog { margin: 0; }
+  @media (max-width: 700px) { #processos .proc { grid-template-columns: 1fr; gap: 2px; } }
   #topoProg { position: absolute; left: 0; right: 0; bottom: -1px; height: 3px; background: transparent; }
   #topoProg > i { display: block; height: 100%; width: 0; background: var(--azul); transition: width .6s ease; }
   #topoProg.indef > i { width: 30%; animation: vaivem2 1.4s ease-in-out infinite alternate; position: relative; }
@@ -119,6 +124,7 @@
 </header>
 
 <main>
+  <div id="processos" class="caixa" title="tudo que está rodando agora — cada um na sua aba do Chrome"></div>
   <!-- ===================== 1 SCANNER ===================== -->
   <section id="aba-scanner" class="oculto">
     <div class="grade">
@@ -870,6 +876,21 @@ $("#bConectar").onclick = async () => {
 };
 
 /** Barra: pct null = sem total conhecido (vaivém). */
+/* ---------- uma barra por processo rodando (total desconhecido = vai-e-vem) ---------- */
+function renderProcessos() {
+  const lista = [...(dados.processos || [])];
+  if (envio.rodando) lista.push({ id: "whatsapp", nome: "Envio WhatsApp", feitas: envio.pos, total: envio.fila.length, texto: `${envio.pos} de ${envio.fila.length}` });
+  const el = $("#processos");
+  const ids = lista.map((p) => p.id + p.nome).join();
+  if (el.dataset.ids !== ids) {
+    el.dataset.ids = ids;
+    el.innerHTML = lista.map((p) => `<div class="proc" data-id="${esc(p.id)}"><b>${esc(p.nome)}</b><div class="prog"><i></i><span></span></div></div>`).join("");
+  }
+  for (const p of lista) {
+    const pct = p.total ? Math.round((100 * p.feitas) / p.total) : null;
+    barra($(`.proc[data-id="${p.id}"] .prog`, el), true, pct, (pct != null ? `${p.feitas}/${p.total} (${pct}%) · ` : "") + p.texto);
+  }
+}
 function barra(el, visivel, pct, texto) {
   el.classList.toggle("oculto", !visivel);
   el.classList.toggle("indef", visivel && pct == null);
@@ -902,7 +923,8 @@ function renderIA(primeira) {
   const ia = dados.projetosNovos?.ia;
   if (primeira && !$("#iaPerfil").value) $("#iaPerfil").value = dados.config.perfil || "";
   const rod = !!ia?.rodando;
-  $("#bIaIniciar").disabled = rod || !!dados.projetosNovos?.lote?.rodando;
+  // a análise do início (sem enviar) não bloqueia: Iniciar assume e passa a enviar
+  $("#bIaIniciar").disabled = (rod && ia.enviar !== false) || !!dados.projetosNovos?.lote?.rodando;
   $("#bIaParar").classList.toggle("oculto", !rod);
   if (ia) {
     barra($("#iaProg"), true, rod ? null : 100,
@@ -967,6 +989,7 @@ async function atualizar(forcar) {
     $("#intMin").value = dados.config.intervaloMin; $("#intMax").value = dados.config.intervaloMax;
   }
   renderScanner();
+  renderProcessos();
   renderIA(forcar === true);
   if (forcar === true || mudou) {
     if (!document.activeElement?.matches("textarea")) renderLista();

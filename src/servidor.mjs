@@ -199,6 +199,7 @@ async function rodarFase(fase) {
   if (fase === "conversas") {
     const pendentes = Object.values(estado.indice).filter((i) => !i.lido && i.url).sort((a, b) => b.ts - a.ts);
     avisar(`${pendentes.length} conversas pra ler`);
+    estado.rodando.progresso = { feitas: 0, total: pendentes.length };
     await freela.faseConversas(
       pendentes.map((i) => ({ id: i.id, url: i.url })),
       async (res, progresso) => {
@@ -219,6 +220,7 @@ async function rodarFase(fase) {
     for (const i of itens) if (!temProjeto(i) && lidos[i.projetoUrl]) i.projetoInfo = lidos[i.projetoUrl];
     const urls = [...new Set(itens.filter((i) => i.projetoUrl && !temProjeto(i)).map((i) => i.projetoUrl))];
     avisar(`${urls.length} projetos pra ler`);
+    estado.rodando.progresso = { feitas: 0, total: urls.length };
     await freela.faseProjetos(
       urls,
       async (res, progresso) => {
@@ -375,7 +377,7 @@ async function lerProjetosNovos(paginas, busca = "", { continuar = false, parar 
   if (!retoma) estado.projetosNovos = { lidoEm: null, busca, itens: [], pagina: 0, completo: false };
   const alvo = estado.projetosNovos;
   const porId = new Map(alvo.itens.map((p) => [p.id, p]));
-  estado.lendoProjetos = { desde: Date.now(), pagina: alvo.pagina, projetos: alvo.itens.length };
+  estado.lendoProjetos = { desde: Date.now(), pagina: alvo.pagina, projetos: alvo.itens.length, ate: paginas || null };
   try {
     await freela.listarProjetos(paginas, busca, {
       deP: alvo.pagina + 1,
@@ -520,6 +522,13 @@ async function interesseEmTodos({ mensagem, min = 15, max = 40, escanear = true,
 
   async function captar() {
     try {
+      // já tem captação rodando (a do início): só vai pegando o que ela traz
+      while (estado.lendoProjetos && !estado.lendoProjetos.erro && !lote.parar) {
+        enfileirar(estado.projetosNovos.itens);
+        await dorme(3000);
+      }
+      enfileirar(estado.projetosNovos.itens);
+      if (estado.projetosNovos.completo && Date.now() - Date.parse(estado.projetosNovos.lidoEm ?? 0) < 10 * 60_000) return;
       // página 1 = mais novos; a lista inteira é relida (novos projetos entram, fechados saem)
       await lerProjetosNovos(paginas, estado.projetosNovos.busca ?? "", {
         continuar: !estado.projetosNovos.completo,
@@ -554,7 +563,8 @@ async function interesseEmTodos({ mensagem, min = 15, max = 40, escanear = true,
  *   → próximos 10 … (capta mais páginas de /projetos quando a lista acaba).
  * Análises em analises.json, estado em lote-ia.json (retoma no reinício).
  */
-async function iaEmLotes({ tamanho = 10, notaMin = 6, min = 20, max = 50, perfil } = {}, anterior = null) {
+/** `enviar: false` = só analisa (o que roda sozinho no início); os bons ficam pra quando você clicar Iniciar. */
+async function iaEmLotes({ tamanho = 10, notaMin = 6, min = 20, max = 50, perfil, enviar = true } = {}, anterior = null) {
   if (estado.iaLote?.rodando) return estado.iaLote;
   if (estado.interesseLote?.rodando) throw new Error("o \"Captar e enviar\" está rodando — pare ele antes");
   tamanho = Math.max(1, Math.min(50, Number(tamanho) || 10));
@@ -562,7 +572,7 @@ async function iaEmLotes({ tamanho = 10, notaMin = 6, min = 20, max = 50, perfil
   perfil = (perfil || estado.config.perfil || "").trim();
   const params = { tamanho, notaMin, min, max, perfil };
   const lote = (estado.iaLote = {
-    rodando: true, desde: anterior?.desde ?? Date.now(), fase: "", rodada: anterior?.rodada ?? 0,
+    rodando: true, enviar, progresso: null, desde: anterior?.desde ?? Date.now(), fase: "", rodada: anterior?.rodada ?? 0,
     analisados: anterior?.analisados ?? 0, enviados: anterior?.enviados ?? 0, descartados: anterior?.descartados ?? 0,
     falhas: anterior?.falhas ?? 0, atual: "", parar: false, params, retomado: !!anterior, erros: anterior?.erros?.slice(-20) ?? [],
   });
@@ -579,11 +589,28 @@ async function iaEmLotes({ tamanho = 10, notaMin = 6, min = 20, max = 50, perfil
   const pendente = (p) =>
     p && !p.jaInteressado && !estado.interesses[p.id]?.ok && !estado.interesses[p.id]?.semBotao &&
     !estado.analises[p.id] && !/fechad|cancelad/i.test(p.status ?? "");
+  // analisados que encaixaram e ainda não foram (inclusive os da análise do início, que não envia)
+  const aEnviar = () =>
+    estado.projetosNovos.itens.filter((p) => {
+      const an = estado.analises[p.id];
+      return an?.encaixa && an.mensagem && !an.enviado && !an.erroEnvio && !p.jaInteressado && !estado.interesses[p.id]?.ok;
+    });
   salvar();
   try {
     while (!lote.parar) {
       let proximos = estado.projetosNovos.itens.filter(pendente).slice(0, tamanho);
-      if (proximos.length < tamanho) {
+      const captandoOutro = estado.lendoProjetos && !estado.lendoProjetos.erro;
+      if (captandoOutro && !proximos.length) {
+        // a captação está rodando em paralelo: espera ela trazer mais projetos
+        lote.fase = "esperando";
+        lote.progresso = null;
+        lote.atual = `esperando a captação de /projetos (${estado.projetosNovos.itens.length} lidos)…`;
+        await dorme(3000);
+        continue;
+      }
+      if (proximos.length < tamanho && !enviar && estado.projetosNovos.completo) {
+        // só analisando: a lista toda já foi lida, analisa o resto e termina
+      } else if (proximos.length < tamanho && !captandoOutro) {
         // lista acabando: capta mais 5 páginas de /projetos (lista toda lida → volta pras mais novas)
         const pn = estado.projetosNovos;
         const continuar = !pn.completo && (pn.pagina || 0) > 0;
@@ -593,7 +620,7 @@ async function iaEmLotes({ tamanho = 10, notaMin = 6, min = 20, max = 50, perfil
         await lerProjetosNovos(ate, pn.busca ?? "", { continuar, parar: () => lote.parar });
         proximos = estado.projetosNovos.itens.filter(pendente).slice(0, tamanho);
       }
-      if (!proximos.length) {
+      if (!proximos.length && !(enviar && aEnviar().length)) {
         lote.atual = "terminado: não há mais projetos pra analisar";
         break;
       }
@@ -601,9 +628,9 @@ async function iaEmLotes({ tamanho = 10, notaMin = 6, min = 20, max = 50, perfil
 
       // 1) analisa os N
       lote.fase = "analisando";
-      const bons = [];
       for (const [k, p] of proximos.entries()) {
         if (lote.parar) break;
+        lote.progresso = { feitas: k, total: proximos.length };
         lote.atual = `rodada ${lote.rodada} — analisando ${k + 1}/${proximos.length}: ${p.titulo}`;
         try {
           let info = await freela.lerProjetoNavegando(p.url);
@@ -625,8 +652,7 @@ async function iaEmLotes({ tamanho = 10, notaMin = 6, min = 20, max = 50, perfil
           const a = await ollama.analisarProjeto({ ...p, ...info, titulo: info.titulo || p.titulo }, perfil);
           estado.analises[p.id] = { quando: new Date().toISOString(), titulo: p.titulo, url: p.url, orcamento: info.orcamento ?? p.orcamento, ...a, encaixa: a.nota >= notaMin };
           lote.analisados++;
-          if (a.nota >= notaMin && a.mensagem) bons.push(p);
-          else lote.descartados++;
+          if (!(a.nota >= notaMin && a.mensagem)) lote.descartados++;
         } catch (e) {
           lote.falhas++;
           lote.erros.push(`analisar ${p.titulo}: ${e.message}`);
@@ -638,10 +664,15 @@ async function iaEmLotes({ tamanho = 10, notaMin = 6, min = 20, max = 50, perfil
         if (k < proximos.length - 1 && !lote.parar) await dorme(2000 + Math.random() * 3000); // lendo como gente
       }
 
+      lote.progresso = { feitas: proximos.length, total: proximos.length };
+      if (!enviar) continue; // só análise: segue pros próximos, sem pausa de envio
+
       // 2) manda interesse nos que encaixaram, com a mensagem da IA
       lote.fase = "enviando";
+      const bons = aEnviar();
       for (const [k, p] of bons.entries()) {
         if (lote.parar) break;
+        lote.progresso = { feitas: k, total: bons.length };
         const an = estado.analises[p.id];
         lote.atual = `rodada ${lote.rodada} — enviando ${k + 1}/${bons.length}: ${p.titulo} (nota ${an.nota})`;
         try {
@@ -679,6 +710,29 @@ async function iaEmLotes({ tamanho = 10, notaMin = 6, min = 20, max = 50, perfil
     salvar();
   }
   return lote;
+}
+
+/**
+ * Uma linha por processo pra barra do painel. `total: null` = sem máximo conhecido (barra vai-e-vem).
+ */
+function processos() {
+  const lista = [];
+  const r = estado.rodando;
+  if (r) {
+    const pr = r.progresso;
+    const nomeFase = { listar: "listando conversas", conversas: "lendo conversas", projetos: "lendo projetos das conversas" }[r.fase] ?? "começando";
+    lista.push({ id: "scanner", nome: "Scanner (caixa de mensagens)", feitas: pr?.feitas ?? 0, total: pr?.total || null, texto: `${nomeFase}${r.msg ? ` · ${r.msg}` : ""}` });
+  }
+  const lp = estado.lendoProjetos;
+  if (lp && !lp.erro) lista.push({ id: "captacao", nome: "Captação /projetos", feitas: lp.pagina ?? 0, total: lp.ate, texto: `página ${lp.pagina ?? 0}${lp.ate ? ` de ${lp.ate}` : ""} · ${lp.projetos ?? 0} projetos` });
+  const ia = estado.iaLote;
+  if (ia?.rodando) {
+    const pr = ia.progresso;
+    lista.push({ id: "ia", nome: ia.enviar === false ? "IA analisando (sem enviar)" : "IA em lotes", feitas: pr?.feitas ?? 0, total: pr?.total || null, texto: `${ia.atual || ia.fase || "começando"} · ${ia.analisados} analisados` });
+  }
+  const lt = estado.interesseLote;
+  if (lt?.rodando) lista.push({ id: "interesses", nome: "Captar e enviar", feitas: lt.feitos, total: lp && !lp.erro ? null : lt.total || null, texto: `${lt.ok} enviados · ${lt.naFila ?? 0} na fila · ${lt.falhas} falhas` });
+  return lista;
 }
 
 /* ---------- HTTP ---------- */
@@ -722,6 +776,7 @@ const rotas = {
     }));
     return {
       whatsapp,
+      processos: processos(),
       scanner: { rodando: estado.rodando, scan: estado.scan, ultimo: estado.ultimoScan, pendentes: pendencias(), salvo: estado.salvo },
       config: estado.config,
       itens,
@@ -869,7 +924,13 @@ const rotas = {
       gravar("config.json", estado.config);
     }
     if (estado.interesseLote?.rodando) throw new Error("o \"Captar e enviar\" está rodando — pare ele antes");
-    iaEmLotes({ tamanho: b.tamanho, notaMin: b.notaMin, min: Number(b.min) || 20, max: Number(b.max) || 50, perfil: b.perfil });
+    // a análise do início (só analisa) dá lugar ao Iniciar, que analisa E envia
+    if (estado.iaLote?.rodando && estado.iaLote.enviar === false) {
+      estado.iaLote.parar = true;
+      while (estado.iaLote?.rodando) await new Promise((ok) => setTimeout(ok, 1000));
+    }
+    iaEmLotes({ tamanho: b.tamanho, notaMin: b.notaMin, min: Number(b.min) || 20, max: Number(b.max) || 50, perfil: b.perfil })
+      .catch((e) => console.log(`IA em lotes: ${e.message}`));
     return { ok: true };
   },
   "POST /api/ia-parar": async () => {
@@ -927,18 +988,19 @@ createServer(async (req, res) => {
   estado.salvo = { quando: Date.now(), conversas: itens.length, lidas: itens.filter((i) => i.lido).length, comTelefone: itens.filter((i) => i.telefones?.length).length };
   console.log(`painel em ${url}  (salvo em disco: ${estado.salvo.conversas} conversas, ${estado.salvo.comTelefone} com telefone)`);
   if (process.platform === "win32" && !process.env.SEM_ABRIR) exec(`start "" "${url}"`);
-  // retoma sozinho um scan que ficou pela metade (ou começa o primeiro)
-  // só retoma sozinho se o servidor caiu NO MEIO (fase "rodando"); parado por você ou com erro → espera o Continuar
+  // no início, em paralelo (cada um na sua aba do Chrome): scanner, captação de /projetos e a IA só analisando.
+  // NADA é enviado sozinho — WhatsApp, Captar e enviar e IA com envio esperam você clicar.
   const incompleto = estado.scan && Object.values(estado.scan.fases).some((v) => v === "rodando");
-  if (!Object.keys(estado.indice).length) rodarScanner({ modo: "tudo" });
-  // lote de interesses que estava rodando quando o servidor caiu: retoma sozinho
+  rodarScanner({ modo: !Object.keys(estado.indice).length ? "tudo" : incompleto ? "continuar" : "novidades" });
+  lerProjetosNovos(0, estado.projetosNovos.busca ?? "", { continuar: !estado.projetosNovos.completo });
   const iaSalvo = ler("lote-ia.json", null);
-  // IA em lotes NÃO retoma sozinha (pesa na CPU e travava o Captar e enviar): espera o Iniciar
-  if (iaSalvo) estado.iaLote = { ...iaSalvo, rodando: false, atual: iaSalvo.rodando && !iaSalvo.parar ? "pausada — clique Iniciar pra continuar" : iaSalvo.parar ? "parado" : iaSalvo.atual };
+  if (iaSalvo) estado.iaLote = { ...iaSalvo, rodando: false, atual: iaSalvo.parar ? "parado" : iaSalvo.atual };
+  fetch(`${process.env.OLLAMA_URL || "http://localhost:11434"}/api/tags`, { signal: AbortSignal.timeout(5000) })
+    .then(() => iaEmLotes({ ...(iaSalvo?.params ?? {}), enviar: false }))
+    .catch((e) => {
+      console.log(`IA (análise do início) não rodou: ${e.message}`);
+      if (estado.iaLote && !estado.iaLote.rodando) estado.iaLote.atual = "Ollama fora do ar — análise do início não rodou";
+    });
   const loteSalvo = ler("lote-interesse.json", null);
-  if (loteSalvo?.rodando && !loteSalvo.parar && loteSalvo.params) {
-    console.log("retomando o envio de interesses de onde parou");
-    interesseEmTodos(loteSalvo.params, loteSalvo).catch((e) => console.log(`Captar e enviar: ${e.message}`));
-  } else if (loteSalvo) estado.interesseLote = { ...loteSalvo, rodando: false, atual: loteSalvo.parar ? "parado" : loteSalvo.atual };
-  else if (incompleto) rodarScanner({ modo: "continuar" });
+  if (loteSalvo) estado.interesseLote = { ...loteSalvo, rodando: false, atual: loteSalvo.rodando && !loteSalvo.parar ? "pausado — clique Captar e enviar pra continuar" : loteSalvo.parar ? "parado" : loteSalvo.atual };
 });
