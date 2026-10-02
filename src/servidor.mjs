@@ -490,12 +490,14 @@ async function interesseEmTodos({ mensagem, min = 15, max = 40, escanear = true,
       }
       if (!pendente(p)) continue; // outra aba já resolveu
       lote.abas[aba] = p.titulo;
+      let semBotao = false;
       try {
         await enviarUm(p, aba);
         lote.ok++;
         seguidas = 0;
       } catch (e) {
         lote.falhas++;
+        semBotao = !!e.semBotao;
         if (!e.semBotao) seguidas++; // sem botão é do projeto, não limite do plano
         lote.erros.push(`${p.titulo}: ${e.message}`);
         if (lote.erros.length > 50) lote.erros.shift();
@@ -506,6 +508,7 @@ async function interesseEmTodos({ mensagem, min = 15, max = 40, escanear = true,
       }
       lote.feitos++;
       salvarLote();
+      if (semBotao) continue; // nada foi enviado: não precisa da pausa (lista velha tem muito projeto fechado)
       const s = Math.round(min + Math.random() * Math.max(0, max - min));
       for (let r = s; r > 0 && !lote.parar; r--) {
         lote.abas[aba] = `próximo em ${r}s`;
