@@ -279,6 +279,15 @@
   <!-- ===================== PROJETOS NOVOS ===================== -->
   <section id="aba-projetos">
     <div class="caixa" style="margin-bottom:12px">
+      <div class="barra"><b>Interesses — o que já foi feito</b> <span class="sub">salvo em data/interesses.json: nunca apaga, nunca manda 2× pro mesmo projeto</span></div>
+      <div id="resumoNums" class="barra" style="margin-top:8px"></div>
+      <div id="resumoLista" class="sub" style="margin-top:6px"></div>
+      <div class="barra" style="margin-top:8px">
+        <button id="bMandarFaltam" class="enviar grande" title="mesmo que Captar e enviar: pega os que faltam + os novos do site, pulando tudo que já foi">Mandar pra todos que faltam</button>
+      </div>
+      <details style="margin-top:6px"><summary>últimos enviados</summary><div id="resumoUltimos" class="msgs" style="max-height:320px"></div></details>
+    </div>
+    <div class="caixa" style="margin-bottom:12px">
       <div class="barra">
         <button id="bInteresseTodos" class="enviar grande" title="capta todas as páginas de /projetos e manda interesse em todos os abertos que ainda não receberam">Captar e enviar para todos</button>
         <button id="bInteresseParar" class="perigo oculto">Parar</button>
@@ -876,6 +885,21 @@ $("#bConectar").onclick = async () => {
 };
 
 /** Barra: pct null = sem total conhecido (vaivém). */
+/* ---------- resumo do que já foi feito (interesses) ---------- */
+function renderResumo() {
+  const r = dados.resumo;
+  if (!r) return;
+  const n = (v, rotulo, cor) => `<span class="pill ${cor}" style="font-size:14px">${rotulo}: <b>${v}</b></span>`;
+  $("#resumoNums").innerHTML = n(r.enviados, "enviados", "ok") + n(r.hoje, "hoje", "azul") + n(r.pendentes, "faltam", "amar") + n(r.semBotao, "sem botão (fechados)", "") + n(r.falhas, "falharam (tenta de novo)", "no");
+  const l = r.lista;
+  $("#resumoLista").textContent = `lista salva: ${l.projetos} projetos — ` + (l.totalPaginas ? `~${l.totalPaginas} páginas no site · ` : "") + (l.completo ? "lida até o fim" : `parou na página ${l.pagina}${l.totalPaginas ? ` — faltam ~${Math.max(0, l.totalPaginas - l.pagina)} páginas` : ""} (continua daí)`) + (l.lidoEm ? ` · atualizada ${new Date(l.lidoEm).toLocaleString("pt-BR")}` : "");
+  const lt = dados.projetosNovos?.lote;
+  $("#bMandarFaltam").disabled = !!lt?.rodando;
+  $("#bMandarFaltam").textContent = lt?.rodando ? "mandando… (veja a barra lá em cima)" : `Mandar pra todos que faltam (${r.pendentes} + novos)`;
+  $("#resumoUltimos").innerHTML = r.ultimos.map((u) => `<div class="m eu"><span class="sub">${new Date(u.quando).toLocaleString("pt-BR")}${u.ia ? " · IA" : ""}</span> ${u.url ? `<a class="titulo" href="${esc(u.url)}" target="_blank">${esc(u.titulo)}</a>` : esc(u.titulo)}</div>`).join("") || '<span class="sub">nenhum ainda</span>';
+}
+$("#bMandarFaltam").onclick = () => $("#bInteresseTodos").click();
+
 /* ---------- uma barra por processo rodando (total desconhecido = vai-e-vem) ---------- */
 function renderProcessos() {
   const lista = [...(dados.processos || [])];
@@ -990,6 +1014,7 @@ async function atualizar(forcar) {
   }
   renderScanner();
   renderProcessos();
+  renderResumo();
   renderIA(forcar === true);
   if (forcar === true || mudou) {
     if (!document.activeElement?.matches("textarea")) renderLista();

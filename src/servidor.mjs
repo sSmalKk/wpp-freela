@@ -370,19 +370,32 @@ function importar(lista) {
  * Lê /projetos. paginas = 0 → todas. Salva a cada página em projetos-novos.json;
  * com `continuar`, retoma da página seguinte à última lida (mesma busca, leitura incompleta).
  */
-async function lerProjetosNovos(paginas, busca = "", { continuar = false, parar = () => false, aoNovos = () => {} } = {}) {
+/**
+ * Lê /projetos página a página, salvando a cada página (retoma de onde parou).
+ * A lista salva NUNCA é apagada (só se mudar a busca): projetos novos entram, os já vistos ficam.
+ * `novidades`: para depois de 3 páginas seguidas sem nenhum projeto novo (os novos aparecem no começo).
+ */
+async function lerProjetosNovos(paginas, busca = "", { continuar = false, novidades = false, parar = () => false, aoNovos = () => {} } = {}) {
   if (estado.lendoProjetos && !estado.lendoProjetos.erro) return;
   const pn = estado.projetosNovos;
   const retoma = continuar && !pn.completo && (pn.busca ?? "") === busca && pn.pagina > 0;
-  if (!retoma) estado.projetosNovos = { lidoEm: null, busca, itens: [], pagina: 0, completo: false };
+  if (!retoma) {
+    const mesmaBusca = (pn.busca ?? "") === busca;
+    estado.projetosNovos = { lidoEm: pn.lidoEm ?? null, busca, itens: mesmaBusca ? pn.itens ?? [] : [], pagina: 0, completo: false, totalPaginas: mesmaBusca ? pn.totalPaginas ?? null : null };
+  }
+  let semNovos = 0;
+  const pararTudo = () => parar() || (novidades && semNovos >= 3);
   const alvo = estado.projetosNovos;
   const porId = new Map(alvo.itens.map((p) => [p.id, p]));
-  estado.lendoProjetos = { desde: Date.now(), pagina: alvo.pagina, projetos: alvo.itens.length, ate: paginas || null };
+  // quantas páginas tem: o site não diz, então usa quantas tinha na última leitura completa (estimativa)
+  const estimado = !paginas && !novidades && alvo.totalPaginas ? alvo.totalPaginas : null;
+  estado.lendoProjetos = { desde: Date.now(), pagina: alvo.pagina, projetos: alvo.itens.length, ate: paginas || estimado, estimado: !!estimado, novidades };
   try {
     await freela.listarProjetos(paginas, busca, {
       deP: alvo.pagina + 1,
-      parar,
+      parar: pararTudo,
       aoPagina: (cards, p) => {
+        semNovos = cards.some((k) => !porId.has(k.id)) ? 0 : semNovos + 1;
         for (const k of cards) {
           const velho = porId.get(k.id);
           porId.set(k.id, { ...k, jaInteressado: k.jaInteressado || !!velho?.jaInteressado || !!estado.interesses[k.id]?.ok });
@@ -396,7 +409,10 @@ async function lerProjetosNovos(paginas, busca = "", { continuar = false, parar 
         aoNovos(cards.map((k) => porId.get(k.id))); // quem capta avisa quem envia
       },
     });
-    if (!parar()) alvo.completo = true;
+    if (!parar()) {
+      alvo.completo = true;
+      if (!novidades && !paginas) alvo.totalPaginas = alvo.pagina; // leu até a última página de verdade
+    }
     alvo.lidoEm = new Date().toISOString();
     gravar("projetos-novos.json", alvo);
     estado.lendoProjetos = null;
@@ -411,7 +427,7 @@ async function enviarInteresse(projetoId, mensagem) {
   const r = await freela.enviarInteresse(p.url, mensagem || estado.config.msgInteresse);
   // sem o botão "Estou interessado" (vaga de outro tipo / fechado): marca pra nunca mais tentar
   const semBotao = !r.ok && /não achei o botão/.test(r.resposta ?? "");
-  estado.interesses[projetoId] = { quando: new Date().toISOString(), ok: r.ok, jaEstava: !!r.jaEstava, semBotao, titulo: p.titulo };
+  estado.interesses[projetoId] = { quando: new Date().toISOString(), ok: r.ok, jaEstava: !!r.jaEstava, semBotao, titulo: p.titulo, url: p.url };
   gravar("interesses.json", estado.interesses);
   if (r.ok) p.jaInteressado = true;
   gravar("projetos-novos.json", estado.projetosNovos);
@@ -463,7 +479,7 @@ async function interesseEmTodos({ mensagem, min = 15, max = 40, escanear = true,
       try {
         const r = await freela.enviarInteresse(p.url, mensagem || estado.config.msgInteresse, { aba });
         const semBotao = !r.ok && /não achei o botão/.test(r.resposta ?? "");
-        estado.interesses[p.id] = { quando: new Date().toISOString(), ok: r.ok, jaEstava: !!r.jaEstava, semBotao, titulo: p.titulo };
+        estado.interesses[p.id] = { quando: new Date().toISOString(), ok: r.ok, jaEstava: !!r.jaEstava, semBotao, titulo: p.titulo, url: p.url };
         gravar("interesses.json", estado.interesses);
         if (r.ok) p.jaInteressado = true;
         if (r.ok) return;
@@ -529,9 +545,11 @@ async function interesseEmTodos({ mensagem, min = 15, max = 40, escanear = true,
       }
       enfileirar(estado.projetosNovos.itens);
       if (estado.projetosNovos.completo && Date.now() - Date.parse(estado.projetosNovos.lidoEm ?? 0) < 10 * 60_000) return;
+      const novidades = !!estado.projetosNovos.completo; // lista já toda lida: só os novos
       // página 1 = mais novos; a lista inteira é relida (novos projetos entram, fechados saem)
       await lerProjetosNovos(paginas, estado.projetosNovos.busca ?? "", {
         continuar: !estado.projetosNovos.completo,
+        novidades,
         parar: () => lote.parar,
         aoNovos: enfileirar,
       });
@@ -677,7 +695,7 @@ async function iaEmLotes({ tamanho = 10, notaMin = 6, min = 20, max = 50, perfil
         lote.atual = `rodada ${lote.rodada} — enviando ${k + 1}/${bons.length}: ${p.titulo} (nota ${an.nota})`;
         try {
           const r = await freela.enviarInteresse(p.url, an.mensagem, { aba: 1 });
-          estado.interesses[p.id] = { quando: new Date().toISOString(), ok: r.ok, jaEstava: !!r.jaEstava, titulo: p.titulo, ia: true, nota: an.nota };
+          estado.interesses[p.id] = { quando: new Date().toISOString(), ok: r.ok, jaEstava: !!r.jaEstava, titulo: p.titulo, url: p.url, ia: true, nota: an.nota };
           gravar("interesses.json", estado.interesses);
           an.enviado = r.ok;
           if (r.ok) {
@@ -712,6 +730,26 @@ async function iaEmLotes({ tamanho = 10, notaMin = 6, min = 20, max = 50, perfil
   return lote;
 }
 
+/** Tudo que já foi feito com interesses (data/interesses.json — nunca é apagado, nunca repete). */
+function resumoInteresses() {
+  const v = Object.values(estado.interesses);
+  const hoje = new Date().toDateString();
+  const ok = v.filter((x) => x.ok);
+  const pn = estado.projetosNovos;
+  const pendentes = pn.itens.filter(
+    (p) => !p.jaInteressado && !estado.interesses[p.id]?.ok && !estado.interesses[p.id]?.semBotao && !/fechad|cancelad/i.test(p.status ?? ""),
+  ).length;
+  return {
+    enviados: ok.length,
+    hoje: ok.filter((x) => new Date(x.quando).toDateString() === hoje).length,
+    semBotao: v.filter((x) => x.semBotao).length,
+    falhas: v.filter((x) => !x.ok && !x.semBotao).length,
+    pendentes,
+    lista: { projetos: pn.itens.length, pagina: pn.pagina, completo: !!pn.completo, lidoEm: pn.lidoEm, totalPaginas: pn.totalPaginas ?? null },
+    ultimos: ok.sort((a, b) => String(b.quando).localeCompare(String(a.quando))).slice(0, 15).map((x) => ({ titulo: x.titulo, quando: x.quando, url: x.url ?? null, ia: !!x.ia })),
+  };
+}
+
 /**
  * Uma linha por processo pra barra do painel. `total: null` = sem máximo conhecido (barra vai-e-vem).
  */
@@ -724,7 +762,7 @@ function processos() {
     lista.push({ id: "scanner", nome: "Scanner (caixa de mensagens)", feitas: pr?.feitas ?? 0, total: pr?.total || null, texto: `${nomeFase}${r.msg ? ` · ${r.msg}` : ""}` });
   }
   const lp = estado.lendoProjetos;
-  if (lp && !lp.erro) lista.push({ id: "captacao", nome: "Captação /projetos", feitas: lp.pagina ?? 0, total: lp.ate, texto: `página ${lp.pagina ?? 0}${lp.ate ? ` de ${lp.ate}` : ""} · ${lp.projetos ?? 0} projetos` });
+  if (lp && !lp.erro) lista.push({ id: "captacao", nome: "Captação /projetos", feitas: lp.pagina ?? 0, total: lp.ate, texto: lp.novidades ? `buscando projetos novos · página ${lp.pagina ?? 0} (para após 3 páginas sem novidade) · ${lp.projetos ?? 0} projetos` : `página ${lp.pagina ?? 0}${lp.ate ? ` de ${lp.estimado ? "~" : ""}${lp.ate} · faltam ${lp.estimado ? "~" : ""}${Math.max(0, lp.ate - (lp.pagina ?? 0))} páginas` : " · total de páginas ainda desconhecido"} · ${lp.projetos ?? 0} projetos` });
   const ia = estado.iaLote;
   if (ia?.rodando) {
     const pr = ia.progresso;
@@ -777,6 +815,7 @@ const rotas = {
     return {
       whatsapp,
       processos: processos(),
+      resumo: resumoInteresses(),
       scanner: { rodando: estado.rodando, scan: estado.scan, ultimo: estado.ultimoScan, pendentes: pendencias(), salvo: estado.salvo },
       config: estado.config,
       itens,
@@ -990,9 +1029,12 @@ createServer(async (req, res) => {
   if (process.platform === "win32" && !process.env.SEM_ABRIR) exec(`start "" "${url}"`);
   // no início, em paralelo (cada um na sua aba do Chrome): scanner, captação de /projetos e a IA só analisando.
   // NADA é enviado sozinho — WhatsApp, Captar e enviar e IA com envio esperam você clicar.
+  // listas salvas antes de existir totalPaginas: estima pelos projetos (10 por página)
+  estado.projetosNovos.totalPaginas ??= estado.projetosNovos.itens.length ? Math.ceil(estado.projetosNovos.itens.length / 10) : null;
   const incompleto = estado.scan && Object.values(estado.scan.fases).some((v) => v === "rodando");
   rodarScanner({ modo: !Object.keys(estado.indice).length ? "tudo" : incompleto ? "continuar" : "novidades" });
-  lerProjetosNovos(0, estado.projetosNovos.busca ?? "", { continuar: !estado.projetosNovos.completo });
+  // lista incompleta: continua da página onde parou; completa: só busca os novos (para quando não aparece nada novo)
+  lerProjetosNovos(0, estado.projetosNovos.busca ?? "", { continuar: !estado.projetosNovos.completo, novidades: !!estado.projetosNovos.completo });
   const iaSalvo = ler("lote-ia.json", null);
   if (iaSalvo) estado.iaLote = { ...iaSalvo, rodando: false, atual: iaSalvo.parar ? "parado" : iaSalvo.atual };
   fetch(`${process.env.OLLAMA_URL || "http://localhost:11434"}/api/tags`, { signal: AbortSignal.timeout(5000) })
