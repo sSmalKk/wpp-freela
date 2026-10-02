@@ -13,10 +13,41 @@ async function http(caminho, method = "GET") {
   return res.json();
 }
 
+/**
+ * Chrome do robô fechado (alguém fechou a janela): abre de novo sozinho, com o mesmo perfil do start.bat
+ * (já logado no site). Uma vez só por vez, mesmo com várias abas pedindo ao mesmo tempo.
+ */
+let reabrindo = null;
+function reabrirChrome() {
+  if (process.platform !== "win32") return Promise.resolve(false);
+  reabrindo ??= (async () => {
+    const { spawn } = await import("node:child_process");
+    const { existsSync } = await import("node:fs");
+    const exe = [
+      process.env.CHROME_EXE,
+      "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+      "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+    ].find((c) => c && existsSync(c));
+    if (!exe) return false;
+    const perfil = process.env.CHROME_PERFIL || `${process.env.LOCALAPPDATA}\\Publiva\\chrome-rpa`;
+    console.log("Chrome do robô estava fechado — abrindo de novo");
+    spawn(exe, [`--remote-debugging-port=${porta()}`, `--user-data-dir=${perfil}`, "--no-first-run",
+      "--disable-background-timer-throttling", "--disable-backgrounding-occluded-windows", "--disable-renderer-backgrounding",
+      "https://freelancer.com.br/projetos"], { detached: true, stdio: "ignore" }).unref();
+    for (let i = 0; i < 30; i++) {
+      await espera(1000);
+      if (await http("/json/version").then(() => true, () => false)) return true;
+    }
+    return false;
+  })().finally(() => setTimeout(() => (reabrindo = null), 30_000));
+  return reabrindo;
+}
+
 export async function abas() {
   try {
     return (await http("/json/list")).filter((t) => t.type === "page");
   } catch {
+    if (await reabrirChrome()) return (await http("/json/list")).filter((t) => t.type === "page");
     throw new Error(`Chrome não está em debug na porta ${porta()} — abra com --remote-debugging-port=${porta()}`);
   }
 }
