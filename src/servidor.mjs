@@ -879,7 +879,10 @@ const rotas = {
   },
   "POST /api/interesse-todos": async (req) => {
     const b = await corpo(req);
-    interesseEmTodos({ mensagem: b.mensagem, min: Number(b.min) || 15, max: Number(b.max) || 40, escanear: b.escanear !== false, paginas: Number(b.paginas) || 0, abas: Number(b.abas) || 4 });
+    // checa antes: o erro vira resposta 500 em vez de derrubar o servidor (promise solta)
+    if (estado.iaLote?.rodando) throw new Error("a IA em lotes está rodando — pare ela antes");
+    interesseEmTodos({ mensagem: b.mensagem, min: Number(b.min) || 15, max: Number(b.max) || 40, escanear: b.escanear !== false, paginas: Number(b.paginas) || 0, abas: Number(b.abas) || 4 })
+      .catch((e) => console.log(`Captar e enviar: ${e.message}`));
     return { ok: true };
   },
   "POST /api/interesse-parar": async () => {
@@ -895,6 +898,9 @@ const rotas = {
     return enviarInteresse(id, mensagem);
   },
 };
+
+// rede de segurança: promise solta com erro não derruba o painel inteiro
+process.on("unhandledRejection", (e) => console.log(`erro solto: ${e?.message ?? e}`));
 
 createServer(async (req, res) => {
   const rota = rotas[`${req.method} ${new URL(req.url, "http://x").pathname}`];
@@ -924,7 +930,7 @@ createServer(async (req, res) => {
   const loteSalvo = ler("lote-interesse.json", null);
   if (loteSalvo?.rodando && !loteSalvo.parar && loteSalvo.params) {
     console.log("retomando o envio de interesses de onde parou");
-    interesseEmTodos(loteSalvo.params, loteSalvo);
+    interesseEmTodos(loteSalvo.params, loteSalvo).catch((e) => console.log(`Captar e enviar: ${e.message}`));
   } else if (loteSalvo) estado.interesseLote = { ...loteSalvo, rodando: false, atual: loteSalvo.parar ? "parado" : loteSalvo.atual };
   else if (incompleto) rodarScanner({ modo: "continuar" });
 });

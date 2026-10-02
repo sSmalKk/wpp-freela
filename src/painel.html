@@ -799,7 +799,7 @@ $("#bInteresseTodos").onclick = async () => {
   const paginas = Math.max(0, Number($("#pPaginas").value) || 0);
   const abas = Math.max(1, Math.min(8, Number($("#pAbas").value) || 4));
   $("#bInteresseTodos").disabled = true;
-  await api("/api/interesse-todos", { mensagem: $("#msgInteresse").value, min, max, escanear: true, paginas, abas });
+  try { await api("/api/interesse-todos", { mensagem: $("#msgInteresse").value, min, max, escanear: true, paginas, abas }); } catch (e) { alert(e.message); }
   atualizar(true);
 };
 $("#bInteresseParar").onclick = () => api("/api/interesse-parar", {}).then(() => atualizar(true));
