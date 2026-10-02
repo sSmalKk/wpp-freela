@@ -586,6 +586,11 @@ export async function enviarInteresse(url, mensagem, { aba = 1 } = {}) {
       if ((await naAba(c, paginaEstadoInteresse, {}).catch(() => "")) === "ja") return { ok: true };
     }
     const aviso = await c.avaliar(`[...document.querySelectorAll(".error-msg, .flash-message, .modal, [class*=alert]")].map((e) => e.innerText.trim()).filter(Boolean).join(" | ").slice(0, 300)`).catch(() => "");
+    // o site avisou que foi (o botão é que não trocou a tempo)
+    if (/interesse do projeto enviado/i.test(aviso)) return { ok: true };
+    // última conferência: recarrega o projeto e vê se o botão virou
+    await abrir(c, url).catch(() => {});
+    if ((await naAba(c, paginaEstadoInteresse, {}).catch(() => "")) === "ja") return { ok: true };
     return { ok: false, resposta: aviso || "o site não confirmou (sem \"não estou mais interessado\" depois de enviar)" };
   } catch (e) {
     // aba fechada / Chrome sem responder: não é falha do projeto — tenta de novo depois
