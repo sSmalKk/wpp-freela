@@ -82,15 +82,19 @@ export async function conectar(aba) {
   }
 
   async function ir(url) {
+    // marca a página velha: sem isso o "complete" dela (ainda na tela) passava por página nova
+    // e o robô lia o projeto anterior
+    await avaliar("window.__paginaVelha = true").catch(() => {});
     await enviar("Page.navigate", { url });
     for (let i = 0; i < 60; i++) {
       await espera(500);
-      const pronto = await avaliar("document.readyState").catch((e) => {
+      const pronto = await avaliar("window.__paginaVelha ? 'velha' : document.readyState").catch((e) => {
         if (fechada) throw e; // aba sumiu: não adianta esperar
         return "";
       });
       if (pronto === "complete") return;
     }
+    if ((await avaliar("!!window.__paginaVelha").catch(() => false)) === true) throw new Error(`a página não carregou: ${url}`);
   }
 
   return { enviar, avaliar, ir, fechar: () => ws.close() };

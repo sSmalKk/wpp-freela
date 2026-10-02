@@ -879,11 +879,18 @@ const rotas = {
   },
   "POST /api/interesse-todos": async (req) => {
     const b = await corpo(req);
-    // checa antes: o erro vira resposta 500 em vez de derrubar o servidor (promise solta)
-    if (estado.iaLote?.rodando) throw new Error("a IA em lotes está rodando — pare ela antes");
-    interesseEmTodos({ mensagem: b.mensagem, min: Number(b.min) || 15, max: Number(b.max) || 40, escanear: b.escanear !== false, paginas: Number(b.paginas) || 0, abas: Number(b.abas) || 4 })
-      .catch((e) => console.log(`Captar e enviar: ${e.message}`));
-    return { ok: true };
+    // IA em lotes rodando: para ela (termina o projeto atual) e começa logo depois
+    const ia = estado.iaLote;
+    if (ia?.rodando) {
+      ia.parar = true;
+      ia.atual = "parando pra dar lugar ao Captar e enviar…";
+      gravar("lote-ia.json", ia);
+    }
+    (async () => {
+      while (estado.iaLote?.rodando) await new Promise((ok) => setTimeout(ok, 1000));
+      await interesseEmTodos({ mensagem: b.mensagem, min: Number(b.min) || 15, max: Number(b.max) || 40, escanear: b.escanear !== false, paginas: Number(b.paginas) || 0, abas: Number(b.abas) || 4 });
+    })().catch((e) => console.log(`Captar e enviar: ${e.message}`));
+    return { ok: true, esperandoIA: !!ia?.rodando };
   },
   "POST /api/interesse-parar": async () => {
     if (estado.interesseLote) {
@@ -923,10 +930,8 @@ createServer(async (req, res) => {
   if (!Object.keys(estado.indice).length) rodarScanner({ modo: "tudo" });
   // lote de interesses que estava rodando quando o servidor caiu: retoma sozinho
   const iaSalvo = ler("lote-ia.json", null);
-  if (iaSalvo?.rodando && !iaSalvo.parar && iaSalvo.params) {
-    console.log("retomando a IA em lotes de onde parou");
-    iaEmLotes(iaSalvo.params, iaSalvo).catch((e) => console.log(`IA em lotes: ${e.message}`));
-  } else if (iaSalvo) estado.iaLote = { ...iaSalvo, rodando: false, atual: iaSalvo.parar ? "parado" : iaSalvo.atual };
+  // IA em lotes NÃO retoma sozinha (pesa na CPU e travava o Captar e enviar): espera o Iniciar
+  if (iaSalvo) estado.iaLote = { ...iaSalvo, rodando: false, atual: iaSalvo.rodando && !iaSalvo.parar ? "pausada — clique Iniciar pra continuar" : iaSalvo.parar ? "parado" : iaSalvo.atual };
   const loteSalvo = ler("lote-interesse.json", null);
   if (loteSalvo?.rodando && !loteSalvo.parar && loteSalvo.params) {
     console.log("retomando o envio de interesses de onde parou");
