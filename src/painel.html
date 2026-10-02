@@ -283,18 +283,12 @@
       <div id="resumoNums" class="barra" style="margin-top:8px"></div>
       <div id="resumoLista" class="sub" style="margin-top:6px"></div>
       <div class="barra" style="margin-top:8px">
-        <button id="bMandarFaltam" class="enviar grande" title="mesmo que Captar e enviar: pega os que faltam + os novos do site, pulando tudo que já foi">Mandar pra todos que faltam</button>
-      </div>
-      <details style="margin-top:6px"><summary>últimos enviados</summary><div id="resumoUltimos" class="msgs" style="max-height:320px"></div></details>
-    </div>
-    <div class="caixa" style="margin-bottom:12px">
-      <div class="barra">
-        <button id="bInteresseTodos" class="enviar grande" title="capta todas as páginas de /projetos e manda interesse em todos os abertos que ainda não receberam">Captar e enviar para todos</button>
+        <button id="bInteresseTodos" class="enviar grande" title="busca os projetos novos do site e manda interesse em todos que faltam, pulando tudo que já foi">Enviar para todos</button>
         <button id="bInteresseParar" class="perigo oculto">Parar</button>
-        <span id="pLoteStatus" class="sub"></span>
       </div>
       <div id="pLoteProg" class="prog verde oculto"><i></i><span></span></div>
       <div id="pLoteInfo" class="sub"></div>
+      <details style="margin-top:6px"><summary>últimos enviados</summary><div id="resumoUltimos" class="msgs" style="max-height:320px"></div></details>
     </div>
     <details class="caixa" style="margin-bottom:12px"><summary>Mensagem e opções</summary>
     <div style="margin-top:8px">
@@ -305,7 +299,6 @@
       <span class="sub">intervalo</span><input type="number" id="pIntMin" value="15"> – <input type="number" id="pIntMax" value="40"><span class="sub">seg</span>
       <span class="sub">abas</span><input type="number" id="pAbas" value="4" min="1" max="8" title="quantas abas mandam interesse ao mesmo tempo">
     </div>
-    <div class="barra" style="margin-top:8px"><span class="sub">buscar</span><input id="pBusca" placeholder="ex: site, automação"><span class="sub">páginas (0 = todas)</span><input type="number" id="pPaginas" value="0" min="0"><button id="bLerProjetos">Ler projetos</button><button id="bContinuarProjetos" title="retoma a leitura da página em que parou">Continuar leitura</button></div>
     <div id="pStatus" class="sub"></div>
     <div style="margin-top:12px">
       <div class="barra"><b>IA em lotes (Ollama)</b> <span class="sub">analisa N projetos → manda interesse nos que encaixam, com mensagem da IA → próximos N</span></div>
@@ -325,10 +318,6 @@
     </details>
     <div class="barra caixa">
       <label><input type="checkbox" id="pEsconder" checked> esconder os que já mandei interesse</label>
-      <button id="pSelTodos">selecionar visíveis</button>
-      <button id="pSelNenhum">nenhum</button>
-      <span id="pSelInfo" class="pill azul"></span>
-      <button id="bInteresseSel">Enviar interesse nos selecionados</button>
     </div>
     <div id="pLista"></div>
   </section>
@@ -364,7 +353,6 @@ const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 let dados = { itens: [], config: {}, projetosNovos: { itens: [] } };
 const selecionados = new Set();
-const pSelecionados = new Set();
 const textos = {};
 const numeroEscolhido = {};
 const ocupado = new Set();
@@ -780,58 +768,25 @@ function pRender() {
   }
   $("#bInteresseTodos").disabled = !!lt?.rodando;
   $("#bInteresseParar").classList.toggle("oculto", !lt?.rodando);
-  $("#pStatus").textContent = pn.lendo?.erro ? `erro: ${pn.lendo.erro}` : pn.lendo ? `lendo projetos… página ${pn.lendo.pagina ?? 0} · ${pn.lendo.projetos ?? 0} projetos` : pn.lidoEm ? `lido ${new Date(pn.lidoEm).toLocaleString("pt-BR")} — ${pn.itens.length} projetos` : "clique em Ler projetos";
-  $("#bLerProjetos").disabled = !!(pn.lendo && !pn.lendo.erro);
-  $("#pSelInfo").textContent = `${pSelecionados.size} selecionado(s)`;
-  $("#pLista").innerHTML = pVisiveis().map((p) => `<div class="linha ${pSelecionados.has(p.id) ? "selecionada" : ""}" data-id="${esc(p.id)}" style="grid-template-columns:24px 1fr 200px 160px">
-      <input type="checkbox" class="psel" ${pSelecionados.has(p.id) ? "checked" : ""}>
+  $("#pStatus").textContent = pn.lendo?.erro ? `erro: ${pn.lendo.erro}` : pn.lendo ? `lendo projetos… página ${pn.lendo.pagina ?? 0} · ${pn.lendo.projetos ?? 0} projetos` : pn.lidoEm ? `lido ${new Date(pn.lidoEm).toLocaleString("pt-BR")} — ${pn.itens.length} projetos` : "a lista é lida sozinha ao abrir e no Enviar para todos";
+  $("#pLista").innerHTML = pVisiveis().map((p) => `<div class="linha" data-id="${esc(p.id)}" style="grid-template-columns:1fr 200px 160px">
       <div><a class="titulo" href="${esc(p.url)}" target="_blank">${esc(p.titulo)}</a>
         <div class="sub">${esc(p.categoria || "")} · ${esc(p.local || "")} · ${esc(p.quando || "")}</div></div>
       <div><b>${esc(p.orcamento || "")}</b><div class="sub">${p.interessados} interessados · ${esc(p.status || "")}</div></div>
-      <div>${p.jaInteressado || p.interesse?.ok ? '<span class="pill ok">interesse enviado</span>' : `<button class="bInteresse">Enviar interesse</button>`}</div>
+      <div>${p.jaInteressado || p.interesse?.ok ? '<span class="pill ok">interesse enviado</span>' : p.interesse?.semBotao ? '<span class="pill">sem botão (fechado)</span>' : '<span class="pill amar">falta</span>'}</div>
     </div>`).join("") || '<p class="sub">nada aqui</p>';
 }
-$("#pLista").addEventListener("change", (e) => {
-  const id = e.target.closest(".linha")?.dataset.id;
-  if (e.target.classList.contains("psel")) { e.target.checked ? pSelecionados.add(id) : pSelecionados.delete(id); pRender(); }
-});
-async function interesseUm(p) { await api("/api/interesse", { id: p.id, mensagem: $("#msgInteresse").value }); p.jaInteressado = true; pSelecionados.delete(p.id); }
-$("#pLista").addEventListener("click", async (e) => {
-  if (!e.target.classList.contains("bInteresse")) return;
-  const p = dados.projetosNovos.itens.find((x) => x.id === e.target.closest(".linha").dataset.id);
-  e.target.disabled = true; e.target.textContent = "enviando…";
-  try { await interesseUm(p); } catch (err) { alert(err.message); }
-  pRender();
-});
 $("#pEsconder").onchange = pRender;
-$("#pSelTodos").onclick = () => { for (const p of pVisiveis()) if (!p.jaInteressado) pSelecionados.add(p.id); pRender(); };
-$("#pSelNenhum").onclick = () => { pSelecionados.clear(); pRender(); };
-$("#bLerProjetos").onclick = async () => { await api("/api/projetos", { paginas: Math.max(0, Number($("#pPaginas").value) || 0), busca: $("#pBusca").value }); atualizar(); };
-$("#bContinuarProjetos").onclick = async () => { await api("/api/projetos", { paginas: Math.max(0, Number($("#pPaginas").value) || 0), busca: $("#pBusca").value, continuar: true }); atualizar(); };
 $("#bInteresseTodos").onclick = async () => {
   // direto, sem confirmação: o servidor já pula os que receberam interesse e os fechados
   const min = Number($("#pIntMin").value) || 15, max = Math.max(min, Number($("#pIntMax").value) || min);
-  const paginas = Math.max(0, Number($("#pPaginas").value) || 0);
+  const paginas = 0; // todas
   const abas = Math.max(1, Math.min(8, Number($("#pAbas").value) || 4));
   $("#bInteresseTodos").disabled = true;
   try { await api("/api/interesse-todos", { mensagem: $("#msgInteresse").value, min, max, escanear: true, paginas, abas }); } catch (e) { alert(e.message); }
   atualizar(true);
 };
 $("#bInteresseParar").onclick = () => api("/api/interesse-parar", {}).then(() => atualizar(true));
-$("#bInteresseSel").onclick = async () => {
-  const alvo = dados.projetosNovos.itens.filter((p) => pSelecionados.has(p.id) && !p.jaInteressado);
-  if (!alvo.length) return alert("Selecione projetos.");
-  const min = Number($("#pIntMin").value) || 0, max = Math.max(min, Number($("#pIntMax").value) || 0);
-  if (!confirm(`Enviar interesse em ${alvo.length} projeto(s), com ${min}–${max}s entre cada um?`)) return;
-  let ok = 0, falhas = 0;
-  for (const [k, p] of alvo.entries()) {
-    $("#pLoteStatus").textContent = `${k + 1}/${alvo.length}: ${p.titulo}`;
-    try { await interesseUm(p); ok++; } catch { falhas++; }
-    pRender();
-    if (k < alvo.length - 1) { const s = Math.round(min + Math.random() * (max - min)); for (let r = s; r > 0; r--) { $("#pLoteStatus").textContent = `${ok} ok, ${falhas} falhas — próximo em ${r}s`; await dorme(1000); } }
-  }
-  $("#pLoteStatus").textContent = `fim: ${ok} ok, ${falhas} falhas`;
-};
 
 /* ---------- importar ---------- */
 $("#jArquivo").onchange = async (e) => { const f = e.target.files[0]; if (f) $("#jTexto").value = await f.text(); };
@@ -894,11 +849,10 @@ function renderResumo() {
   const l = r.lista;
   $("#resumoLista").textContent = `lista salva: ${l.projetos} projetos — ` + (l.totalPaginas ? `~${l.totalPaginas} páginas no site · ` : "") + (l.completo ? "lida até o fim" : `parou na página ${l.pagina}${l.totalPaginas ? ` — faltam ~${Math.max(0, l.totalPaginas - l.pagina)} páginas` : ""} (continua daí)`) + (l.lidoEm ? ` · atualizada ${new Date(l.lidoEm).toLocaleString("pt-BR")}` : "");
   const lt = dados.projetosNovos?.lote;
-  $("#bMandarFaltam").disabled = !!lt?.rodando;
-  $("#bMandarFaltam").textContent = lt?.rodando ? "mandando… (veja a barra lá em cima)" : `Mandar pra todos que faltam (${r.pendentes} + novos)`;
+  if (!lt?.rodando) $("#bInteresseTodos").textContent = `Enviar para todos (${r.pendentes} que faltam + novos)`;
+  else $("#bInteresseTodos").textContent = "enviando… (veja a barra lá em cima)";
   $("#resumoUltimos").innerHTML = r.ultimos.map((u) => `<div class="m eu"><span class="sub">${new Date(u.quando).toLocaleString("pt-BR")}${u.ia ? " · IA" : ""}</span> ${u.url ? `<a class="titulo" href="${esc(u.url)}" target="_blank">${esc(u.titulo)}</a>` : esc(u.titulo)}</div>`).join("") || '<span class="sub">nenhum ainda</span>';
 }
-$("#bMandarFaltam").onclick = () => $("#bInteresseTodos").click();
 
 /* ---------- uma barra por processo rodando (total desconhecido = vai-e-vem) ---------- */
 function renderProcessos() {
