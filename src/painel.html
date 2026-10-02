@@ -105,10 +105,10 @@
 <header>
   <h1>wpp-freela</h1>
   <nav>
-    <button data-aba="scanner" class="ativo">1 · Scanner</button>
-    <button data-aba="lista">2 · Selecionar</button>
-    <button data-aba="enviar">3 · Enviar <span id="navFila"></span></button>
-    <button data-aba="projetos" class="extra">Projetos novos</button>
+    <button data-aba="projetos" class="ativo">1 · Projetos</button>
+    <button data-aba="scanner">2 · Scanner</button>
+    <button data-aba="lista">3 · Selecionar</button>
+    <button data-aba="enviar">4 · Enviar <span id="navFila"></span></button>
     <button data-aba="importar">Importar JSON</button>
   </nav>
   <span style="flex:1"></span>
@@ -120,7 +120,7 @@
 
 <main>
   <!-- ===================== 1 SCANNER ===================== -->
-  <section id="aba-scanner">
+  <section id="aba-scanner" class="oculto">
     <div class="grade">
       <div class="caixa">
         <div class="sub">conversas no índice</div><div class="num" id="sTotal">0</div>
@@ -137,9 +137,7 @@
     </div>
     <div class="caixa">
       <div class="barra">
-        <button id="bIndexar" class="grande enviar" title="lista até a primeira página sem novidade, depois lê o que falta">Escanear (novidades)</button>
-        <button id="bIndexarTudo" class="grande" title="aperta Próximo até a última página da caixa de mensagens do site">Escanear tudo</button>
-        <button id="bContinuar" class="grande" title="retoma o scan de onde parou">Continuar</button>
+        <button id="bIndexarTudo" class="grande enviar" title="aperta Próximo até a última página da caixa de mensagens do site">Escanear tudo</button>
         <button id="bPararScan" class="grande perigo oculto">Parar</button>
         <span id="idxStatus"></span>
       </div>
@@ -273,8 +271,28 @@
   </section>
 
   <!-- ===================== PROJETOS NOVOS ===================== -->
-  <section id="aba-projetos" class="oculto">
+  <section id="aba-projetos">
     <div class="caixa" style="margin-bottom:12px">
+      <div class="barra">
+        <button id="bInteresseTodos" class="enviar grande" title="capta todas as páginas de /projetos e manda interesse em todos os abertos que ainda não receberam">Captar e enviar para todos</button>
+        <button id="bInteresseParar" class="perigo oculto">Parar</button>
+        <span id="pLoteStatus" class="sub"></span>
+      </div>
+      <div id="pLoteProg" class="prog verde oculto"><i></i><span></span></div>
+      <div id="pLoteInfo" class="sub"></div>
+    </div>
+    <details class="caixa" style="margin-bottom:12px"><summary>Mensagem e opções</summary>
+    <div style="margin-top:8px">
+      <div class="sub">Mensagem de interesse (vai no próprio site, não no WhatsApp)</div>
+      <textarea id="msgInteresse" rows="4"></textarea>
+    </div>
+    <div class="barra" style="margin-top:8px">
+      <span class="sub">intervalo</span><input type="number" id="pIntMin" value="15"> – <input type="number" id="pIntMax" value="40"><span class="sub">seg</span>
+      <span class="sub">abas</span><input type="number" id="pAbas" value="4" min="1" max="8" title="quantas abas mandam interesse ao mesmo tempo">
+    </div>
+    <div class="barra" style="margin-top:8px"><span class="sub">buscar</span><input id="pBusca" placeholder="ex: site, automação"><span class="sub">páginas (0 = todas)</span><input type="number" id="pPaginas" value="0" min="0"><button id="bLerProjetos">Ler projetos</button><button id="bContinuarProjetos" title="retoma a leitura da página em que parou">Continuar leitura</button></div>
+    <div id="pStatus" class="sub"></div>
+    <div style="margin-top:12px">
       <div class="barra"><b>IA em lotes (Ollama)</b> <span class="sub">analisa N projetos → manda interesse nos que encaixam, com mensagem da IA → próximos N</span></div>
       <div class="sub">Seu perfil (a IA compara cada projeto com isto)</div>
       <textarea id="iaPerfil" rows="3"></textarea>
@@ -289,30 +307,14 @@
       <div id="iaInfo" class="sub"></div>
       <details style="margin-top:6px"><summary>últimas análises</summary><div id="iaAnalises" class="msgs" style="max-height:420px"></div></details>
     </div>
-    <div class="grade">
-      <div class="caixa">
-        <div class="sub">Mensagem de interesse (vai no próprio site, não no WhatsApp)</div>
-        <textarea id="msgInteresse" rows="4"></textarea>
-      </div>
-      <div class="caixa">
-        <div class="barra"><span class="sub">buscar</span><input id="pBusca" placeholder="ex: site, automação"><span class="sub">páginas (0 = todas)</span><input type="number" id="pPaginas" value="0" min="0"><button id="bLerProjetos">Ler projetos</button><button id="bContinuarProjetos" title="retoma a leitura da página em que parou">Continuar leitura</button></div>
-        <div id="pStatus" class="sub"></div>
-      </div>
-    </div>
+    </details>
     <div class="barra caixa">
       <label><input type="checkbox" id="pEsconder" checked> esconder os que já mandei interesse</label>
       <button id="pSelTodos">selecionar visíveis</button>
       <button id="pSelNenhum">nenhum</button>
       <span id="pSelInfo" class="pill azul"></span>
-      <span class="sub">intervalo</span><input type="number" id="pIntMin" value="15"> – <input type="number" id="pIntMax" value="40"><span class="sub">seg</span>
       <button id="bInteresseSel">Enviar interesse nos selecionados</button>
-<span class="sub">abas</span><input type="number" id="pAbas" value="4" min="1" max="8" title="quantas abas mandam interesse ao mesmo tempo">
-      <button id="bInteresseTodos" class="enviar grande" title="1 aba capta /projetos e N abas mandam interesse em paralelo, ao mesmo tempo">Captar e enviar</button>
-      <button id="bInteresseParar" class="perigo oculto">Parar</button>
-      <span id="pLoteStatus" class="sub"></span>
     </div>
-    <div id="pLoteProg" class="prog verde oculto"><i></i><span></span></div>
-    <div id="pLoteInfo" class="sub"></div>
     <div id="pLista"></div>
   </section>
 
@@ -792,11 +794,11 @@ $("#pSelNenhum").onclick = () => { pSelecionados.clear(); pRender(); };
 $("#bLerProjetos").onclick = async () => { await api("/api/projetos", { paginas: Math.max(0, Number($("#pPaginas").value) || 0), busca: $("#pBusca").value }); atualizar(); };
 $("#bContinuarProjetos").onclick = async () => { await api("/api/projetos", { paginas: Math.max(0, Number($("#pPaginas").value) || 0), busca: $("#pBusca").value, continuar: true }); atualizar(); };
 $("#bInteresseTodos").onclick = async () => {
-  const abertos = (dados.projetosNovos.itens || []).filter((p) => !p.jaInteressado && !p.interesse?.ok && !/fechad|cancelad/i.test(p.status || ""));
+  // direto, sem confirmação: o servidor já pula os que receberam interesse e os fechados
   const min = Number($("#pIntMin").value) || 15, max = Math.max(min, Number($("#pIntMax").value) || min);
   const paginas = Math.max(0, Number($("#pPaginas").value) || 0);
   const abas = Math.max(1, Math.min(8, Number($("#pAbas").value) || 4));
-  if (!confirm(`Captar ${paginas ? paginas + " páginas" : "TODAS as páginas"} de projetos abertos e, ao mesmo tempo, mandar interesse em todos com ${abas} abas (${min}–${max}s de pausa em cada aba).\nJá começa com ${abertos.length} da lista salva.\n\nRoda no servidor, pode fechar o painel. Para sozinho com 5 falhas seguidas.`)) return;
+  $("#bInteresseTodos").disabled = true;
   await api("/api/interesse-todos", { mensagem: $("#msgInteresse").value, min, max, escanear: true, paginas, abas });
   atualizar(true);
 };
@@ -832,9 +834,7 @@ for (const campo of ["minhaMsg", "minhaMsgRetorno", "msgInteresse"]) {
   $("#" + campo).addEventListener("input", (e) => { clearTimeout(tCfg); tCfg = setTimeout(() => api("/api/config", { [campo]: e.target.value }), 600); });
 }
 const scanner = (corpo) => api("/api/scanner", corpo).then(() => atualizar()).catch((e) => alert(e.message));
-$("#bIndexar").onclick = () => scanner({ modo: "novidades" });
 $("#bIndexarTudo").onclick = () => scanner({ modo: "tudo" });
-$("#bContinuar").onclick = () => scanner({ modo: "continuar" });
 $("#bPararScan").onclick = () => api("/api/scanner-parar", {}).then(() => atualizar(true));
 $("#bPararTudo").onclick = () => api("/api/parar-tudo", {}).then(() => atualizar(true));
 $("#fases").addEventListener("click", (e) => { const f = e.target.dataset?.fase; if (f) scanner({ modo: "continuar", so: f }); });
@@ -944,7 +944,7 @@ async function atualizar(forcar) {
   const txt = rod ? `escaneando (${rod.fase ?? "…"}) · ${rod.msg ?? ""} · ${Math.round((Date.now() - rod.desde) / 1000)}s`
     : ult?.erro ? `parou em ${ult.erro} — clique Continuar` : ult?.fim ? `escaneado ${new Date(ult.fim).toLocaleTimeString("pt-BR")}` : "";
   $("#idxStatus").textContent = txt; $("#idxMini").textContent = txt;
-  for (const b of ["#bIndexar", "#bIndexarTudo", "#bContinuar"]) $(b).disabled = !!rod;
+  $("#bIndexarTudo").disabled = !!rod;
   $("#bPararScan").classList.toggle("oculto", !rod);
   $("#bPararTudo").classList.toggle("oculto", !rod && !dados.projetosNovos?.lote?.rodando && !dados.projetosNovos?.ia?.rodando);
   renderFases();
