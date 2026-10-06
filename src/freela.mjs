@@ -14,9 +14,11 @@ const SITE = "https://freelancer.com.br";
 const NOME_ABA = "wpp-freela-robo"; // window.name da aba do robô (sobrevive à navegação)
 
 async function abaPropria() {
+  // aba congelada não responde: desiste dela em 3 s (senão o scanner fica minutos parado)
+  const ate3s = (p) => Promise.race([p, new Promise((ok) => setTimeout(() => ok(null), 3000))]);
   for (const t of (await cdp.abas()).filter((t) => t.url.includes("freelancer.com.br"))) {
-    const c = await cdp.conectar(t).catch(() => null);
-    const nome = await c?.avaliar("window.name").catch(() => "");
+    const c = await ate3s(cdp.conectar(t).catch(() => null));
+    const nome = c ? await ate3s(c.avaliar("window.name").catch(() => "")) : "";
     c?.fechar();
     if (nome === NOME_ABA) return t;
   }
@@ -36,7 +38,10 @@ async function esperarPagina(c, urlAntes = null) {
       return "";
     });
     const [href, pronto] = t.split(" ");
-    if (href?.includes("freelancer.com.br") && href !== urlAntes && pronto === "complete" && !/verificação de segurança/i.test(t)) {
+    // às vezes um script de fora (widget de chat) nunca termina e a página fica "loading" pra sempre:
+    // depois de 8 s, conteúdo do site na tela já vale
+    const temConteudo = i >= 8 && /Freelancers|Minhas mensagens|Projetos/.test(t);
+    if (href?.includes("freelancer.com.br") && href !== urlAntes && (pronto === "complete" || temConteudo) && !/verificação de segurança/i.test(t)) {
       await cdp.espera(400);
       return;
     }
