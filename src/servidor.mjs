@@ -721,6 +721,13 @@ async function iaEmLotes({ tamanho = 10, notaMin = 6, min = 20, max = 50, perfil
         lote.atual = `rodada ${lote.rodada} — enviando ${k + 1}/${bons.length}: ${p.titulo} (nota ${an.nota})`;
         try {
           const r = await freela.enviarInteresse(p.url, an.mensagem, { aba: 1 });
+          // o site bloqueou a conta (excesso de envios): para tudo e não queima a mensagem pronta
+          if (!r.ok && /não é permitido/i.test(r.resposta ?? "")) {
+            lote.parar = lote.bloqueado = true;
+            lote.erros.push(`enviar ${p.titulo}: ${r.resposta}`);
+            lote.atual = `o site está bloqueando os envios ("não é permitido") — ${aEnviar().length} mensagens prontas ficam guardadas`;
+            break;
+          }
           estado.interesses[p.id] = { quando: new Date().toISOString(), ok: r.ok, jaEstava: !!r.jaEstava, titulo: p.titulo, url: p.url, ia: true, nota: an.nota };
           gravar("interesses.json", estado.interesses);
           an.enviado = r.ok;
@@ -745,7 +752,7 @@ async function iaEmLotes({ tamanho = 10, notaMin = 6, min = 20, max = 50, perfil
       if (lote.erros.length > 50) lote.erros = lote.erros.slice(-50);
       if (!lote.parar) await pausa("próxima rodada");
     }
-    if (lote.parar) lote.atual = "parado";
+    if (lote.parar && !lote.bloqueado) lote.atual = "parado";
   } catch (e) {
     lote.atual = `erro: ${e.message}`;
   } finally {
