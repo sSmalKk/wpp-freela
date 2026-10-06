@@ -9,6 +9,7 @@
     "start": "node --env-file-if-exists=.env src/servidor.mjs",
     "status": "node --env-file-if-exists=.env src/cli.mjs status",
     "conectar": "node --env-file-if-exists=.env src/cli.mjs conectar",
-    "enviar": "node --env-file-if-exists=.env src/cli.mjs enviar"
+    "enviar": "node --env-file-if-exists=.env src/cli.mjs enviar",
+    "respostas": "node --env-file-if-exists=.env src/cli.mjs respostas"
   }
 }
