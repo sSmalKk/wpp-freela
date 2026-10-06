@@ -156,7 +156,10 @@ export async function fotoPerfil(numero) {
  * `jids` extras (ex.: o "@lid" da conversa) entram junto — as respostas costumam ficar lá.
  */
 export async function historico(numero, limite = 30, jids = []) {
-  const alvos = [...new Set([`${normalizarNumero(numero)}@s.whatsapp.net`, ...jids])];
+  const n = normalizarNumero(numero);
+  // celular BR: o JID costuma vir sem o 9 (5534 9 92606933 → 553492606933) — procura nos dois
+  const sem9 = /^55\d{2}9\d{8}$/.test(n) ? `${n.slice(0, 4)}${n.slice(5)}` : null;
+  const alvos = [...new Set([`${n}@s.whatsapp.net`, ...(sem9 ? [`${sem9}@s.whatsapp.net`] : []), ...jids])];
   const lista = [];
   const vistos = new Set();
   for (const remoteJid of alvos) {
