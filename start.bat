@@ -1,7 +1,7 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-title freela 2.0
+title wpp-freela
 
 rem --- Chrome em debug (perfil proprio do robo, ja logado no freelancer.com.br) ---
 set "CHROME=C:\Program Files\Google\Chrome\Application\chrome.exe"
@@ -33,5 +33,5 @@ where node >nul 2>nul || (echo Node 22+ nao encontrado. Instale em https://nodej
 echo.
 echo Painel: http://localhost:3737   (feche esta janela para parar)
 echo.
-node --env-file-if-exists=.env freela2\servidor.mjs
+node --env-file-if-exists=.env src\servidor.mjs
 pause

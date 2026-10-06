@@ -555,6 +555,11 @@ function paginaEstadoInteresse() {
  */
 /** `aba`: número da aba de envio (1, 2, 3…) — cada uma trabalha em paralelo. */
 export async function enviarInteresse(url, mensagem, { aba = 1 } = {}) {
+  // DESLIGADO: a conta levou ban por spam (excesso de interesses) — nem o v1 nem o 2.0 mandam proposta.
+  // Só volta se LIBERAR_INTERESSE=1 estiver no .env (depois que o suporte liberar).
+  if (process.env.LIBERAR_INTERESSE !== "1") {
+    return { ok: false, desligado: true, resposta: "envio de interesse DESLIGADO (conta com ban por spam) — nada foi enviado" };
+  }
   // cada projeto numa aba nova (abre vazia, vai direto pro projeto) — fechada no fim
   const c = await sessaoProjetos(`wpp-freela-envio-${aba}`, "about:blank");
   try {

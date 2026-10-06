@@ -774,7 +774,7 @@ async function iaEmLotes({ tamanho = 10, notaMin = 6, min = 20, max = 50, perfil
         try {
           const r = await freela.enviarInteresse(p.url, an.mensagem, { aba: 1 });
           // o site bloqueou a conta (excesso de envios): para tudo e não queima a mensagem pronta
-          if (!r.ok && /não é permitido/i.test(r.resposta ?? "")) {
+          if (!r.ok && (r.desligado || /não é permitido/i.test(r.resposta ?? ""))) {
             lote.parar = lote.bloqueado = true;
             lote.erros.push(`enviar ${p.titulo}: ${r.resposta}`);
             lote.atual = `o site está bloqueando os envios ("não é permitido") — ${aEnviar().length} mensagens prontas ficam guardadas`;
@@ -1135,8 +1135,9 @@ createServer(async (req, res) => {
   estado.salvo = { quando: Date.now(), conversas: itens.length, lidas: itens.filter((i) => i.lido).length, comTelefone: itens.filter((i) => i.telefones?.length).length };
   console.log(`painel em ${url}  (salvo em disco: ${estado.salvo.conversas} conversas, ${estado.salvo.comTelefone} com telefone)`);
   if (process.platform === "win32" && !process.env.SEM_ABRIR) exec(`start "" "${url}"`);
-  // no início, em paralelo (cada um na sua aba do Chrome): scanner, captação de /projetos e a IA só analisando.
-  // NADA é enviado sozinho — WhatsApp, Captar e enviar e IA com envio esperam você clicar.
+  // no início: só o scanner da caixa (traz os contatos liberados pro WhatsApp).
+  // Captação de /projetos e IA NÃO rodam mais sozinhas: interesse no site está desligado (ban por spam) —
+  // o v1 agora só manda WhatsApp pros contatos que já tem.
   const apagados = limparProjetos();
   if (apagados) console.log(`${apagados} projetos que não têm nada a ver com você saíram da lista`);
   // a lista é filtrada, então não dá pra estimar as páginas pelos projetos: sem total até uma leitura completa
@@ -1145,15 +1146,8 @@ createServer(async (req, res) => {
   const incompleto = estado.scan && Object.values(estado.scan.fases).some((v) => v === "rodando");
   rodarScanner({ modo: !Object.keys(estado.indice).length ? "tudo" : incompleto ? "continuar" : "novidades" });
   // lista incompleta: continua da página onde parou; completa: só busca os novos (para quando não aparece nada novo)
-  lerProjetosNovos(0, estado.projetosNovos.busca ?? "", { continuar: !estado.projetosNovos.completo, novidades: !!estado.projetosNovos.completo });
   const iaSalvo = ler("lote-ia.json", null);
-  if (iaSalvo) estado.iaLote = { ...iaSalvo, rodando: false, atual: iaSalvo.parar ? "parado" : iaSalvo.atual };
-  fetch(`${process.env.OLLAMA_URL || "http://localhost:11434"}/api/tags`, { signal: AbortSignal.timeout(5000) })
-    .then(() => iaEmLotes({ ...(iaSalvo?.params ?? {}), enviar: false }))
-    .catch((e) => {
-      console.log(`IA (análise do início) não rodou: ${e.message}`);
-      if (estado.iaLote && !estado.iaLote.rodando) estado.iaLote.atual = "Ollama fora do ar — análise do início não rodou";
-    });
+  if (iaSalvo) estado.iaLote = { ...iaSalvo, rodando: false, atual: "desligado (interesse no site desligado)" };
   const loteSalvo = ler("lote-interesse.json", null);
   if (loteSalvo) estado.interesseLote = { ...loteSalvo, rodando: false, atual: loteSalvo.rodando && !loteSalvo.parar ? "pausado — clique Captar e enviar pra continuar" : loteSalvo.parar ? "parado" : loteSalvo.atual };
 });
