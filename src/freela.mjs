@@ -460,9 +460,11 @@ async function abaNomeada(nome, url) {
   const abas = await cdp.abas();
   const conhecida = abas.find((t) => t.id === idDaAba.get(nome));
   if (conhecida) return conhecida;
+  // aba congelada (Chrome pausou, ou ficou presa de outra conexão) não responde: desiste em 3 s
+  const ate3s = (p) => Promise.race([p, new Promise((ok) => setTimeout(() => ok(null), 3000))]);
   for (const t of abas.filter((t) => t.url.includes("freelancer.com.br"))) {
-    const c = await cdp.conectar(t).catch(() => null);
-    const n = await c?.avaliar("window.name").catch(() => "");
+    const c = await ate3s(cdp.conectar(t).catch(() => null));
+    const n = c ? await ate3s(c.avaliar("window.name").catch(() => "")) : "";
     c?.fechar();
     if (n === nome) {
       idDaAba.set(nome, t.id);

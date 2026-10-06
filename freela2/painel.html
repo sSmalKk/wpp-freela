@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>freela 2.0</title>
+<style>
+  :root { --fundo:#f4f5f7; --caixa:#fff; --borda:#dde0e5; --texto:#1d2330; --sub:#6b7280; --vai:#16a34a; --vai-bg:#ecfdf3; --nao:#dc2626; --nao-bg:#fef2f2; --azul:#2563eb; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:14px/1.45 system-ui, sans-serif; background:var(--fundo); color:var(--texto); }
+  header { position:sticky; top:0; z-index:5; background:var(--caixa); border-bottom:1px solid var(--borda); padding:10px 16px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  header b { font-size:16px; margin-right:8px; }
+  nav button { border:1px solid var(--borda); background:#fff; padding:6px 12px; border-radius:6px; cursor:pointer; }
+  nav button.ativo { background:var(--texto); color:#fff; border-color:var(--texto); }
+  main { padding:16px; max-width:1500px; margin:0 auto; }
+  section.oculto, .oculto { display:none !important; }
+  .caixa { background:var(--caixa); border:1px solid var(--borda); border-radius:8px; padding:12px; margin-bottom:12px; }
+  .barra { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .sub { color:var(--sub); font-size:12px; }
+  button.acao { background:var(--azul); color:#fff; border:0; padding:8px 14px; border-radius:6px; cursor:pointer; font-weight:600; }
+  button.perigo { background:var(--nao); color:#fff; border:0; padding:6px 12px; border-radius:6px; cursor:pointer; }
+  button:disabled { opacity:.5; cursor:default; }
+  input[type=number] { width:64px; }
+  textarea { width:100%; font:inherit; border:1px solid var(--borda); border-radius:6px; padding:6px; }
+  #tarefa { flex:1; min-width:240px; }
+  .prog { height:6px; background:#e5e7eb; border-radius:3px; overflow:hidden; margin-top:3px; }
+  .prog i { display:block; height:100%; background:var(--azul); width:0; transition:width .3s; }
+  .cols { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  @media (max-width:900px) { .cols { grid-template-columns:1fr; } }
+  .col h2 { margin:0 0 8px; font-size:15px; position:sticky; top:52px; background:var(--fundo); padding:6px 0; z-index:2; }
+  .card { border:1px solid var(--borda); border-left:5px solid var(--borda); border-radius:8px; padding:10px; margin-bottom:8px; cursor:pointer; background:#fff; }
+  .card:hover { box-shadow:0 1px 6px rgba(0,0,0,.12); }
+  .col.vai .card { border-left-color:var(--vai); }
+  .col.nao .card { border-left-color:var(--nao); }
+  .card .t { font-weight:600; }
+  .card a { color:var(--azul); text-decoration:none; }
+  .card .desc { white-space:pre-wrap; margin-top:6px; max-height:260px; overflow:auto; font-size:13px; background:#fafafa; border-radius:4px; padding:6px; }
+  .pill { display:inline-block; font-size:11px; padding:1px 7px; border-radius:10px; background:#eef0f3; }
+  .pill.vai { background:var(--vai-bg); color:var(--vai); } .pill.nao { background:var(--nao-bg); color:var(--nao); } .pill.eu { background:#eef2ff; color:#4338ca; }
+  table { width:100%; border-collapse:collapse; background:#fff; }
+  th, td { border-bottom:1px solid var(--borda); padding:6px 8px; text-align:left; vertical-align:top; }
+  th { font-size:12px; color:var(--sub); }
+  td textarea { min-width:280px; }
+</style>
+</head>
+<body>
+<header>
+  <b>freela 2.0</b>
+  <nav>
+    <button data-aba="capturar" class="ativo">1 · Capturar</button>
+    <button data-aba="selecionar">2 · Selecionar</button>
+    <button data-aba="interesse">3 · Interesse</button>
+    <button data-aba="esperar">4 · Esperar WhatsApp</button>
+    <button data-aba="whats">5 · WhatsApp</button>
+  </nav>
+  <div id="tarefa"><span id="tMsg" class="sub">parado</span><div class="prog"><i id="tBarra"></i></div></div>
+  <button id="bParar" class="perigo oculto">Parar</button>
+</header>
+<main>
+
+<section id="aba-capturar">
+  <div class="caixa">
+    <p>Lê a lista de projetos do site (os mais novos primeiro; para depois de 3 páginas sem nada novo) e depois a <b>descrição inteira</b> de cada um. Os que caem numa regra óbvia (presencial, fechado, área fora do perfil) já vão pra "não vai"; o resto a LLM lê na etapa 2.</p>
+    <div class="barra">
+      <span class="sub">até</span><input type="number" id="cPaginas" min="1" max="200"><span class="sub">páginas</span>
+      <button id="bCapturar" class="acao">Capturar projetos</button>
+    </div>
+  </div>
+  <div class="caixa" id="cResumo"></div>
+</section>
+
+<section id="aba-selecionar" class="oculto">
+  <div class="caixa barra">
+    <span id="lMsg" class="sub"></span>
+    <button id="bLlm">Rodar LLM</button>
+    <button id="bLlmParar" class="oculto">Parar LLM</button>
+    <input id="sBusca" placeholder="buscar…" style="flex:1;min-width:160px">
+    <label class="sub"><input type="checkbox" id="sEnviados"> mostrar os que já mandei interesse</label>
+  </div>
+  <p class="sub">Clique num projeto pra trocar de coluna. A LLM só sugere — o que vale é a coluna em que está. Roxo = você mexeu.</p>
+  <div class="cols">
+    <div class="col vai"><h2 id="hVai">Vai</h2><div id="colVai"></div></div>
+    <div class="col nao"><h2 id="hNao">Não vai</h2><div id="colNao"></div></div>
+  </div>
+</section>
+
+<section id="aba-interesse" class="oculto">
+  <div class="caixa">
+    <div class="barra"><b id="iConta"></b> <span id="iHoje" class="sub"></span></div>
+    <div class="barra" style="margin-top:8px">
+      <span class="sub">limite por dia</span><input type="number" id="iLimite" min="1">
+      <span class="sub">pausa</span><input type="number" id="iMin"> – <input type="number" id="iMax"><span class="sub">seg</span>
+      <button id="bInteresse" class="acao">Mandar interesse nos "vai"</button>
+    </div>
+    <div class="sub" style="margin-top:8px">Mensagem (vai no próprio site, no botão "Estou interessado")</div>
+    <textarea id="iMsg" rows="4"></textarea>
+    <button id="bSalvarI">Salvar</button>
+  </div>
+  <div class="caixa"><div id="iLista"></div></div>
+</section>
+
+<section id="aba-esperar" class="oculto">
+  <div class="caixa barra">
+    <button id="bCaixa" class="acao">Ler caixa de mensagens do site</button>
+    <label class="sub"><input type="checkbox" id="eTodas"> mostrar também conversas antigas (antes do 2.0)</label>
+    <span class="sub">O contato aparece quando o cliente responde ou quando o site libera o telefone (cliente não respondeu em alguns dias).</span>
+  </div>
+  <div class="caixa"><div id="eLista"></div></div>
+</section>
+
+<section id="aba-whats" class="oculto">
+  <div class="caixa">
+    <div class="barra"><b>WhatsApp:</b> <span id="wEstado" class="pill"></span> <a href="/qr" target="_blank">conectar (QR)</a></div>
+    <div class="sub" style="margin-top:8px">Modelo — {saudacao} (bom dia/boa tarde/boa noite), {nome}, {projeto}</div>
+    <textarea id="wModelo" rows="2"></textarea>
+    <div class="barra" style="margin-top:6px">
+      <button id="bSalvarW">Salvar modelo</button>
+      <label class="sub"><input type="checkbox" id="wTodas"> incluir conversas antigas</label>
+      <button id="bWhats" class="acao">Enviar selecionados</button>
+      <button id="bRespostas">Checar respostas</button>
+    </div>
+    <p class="sub">Antes de cada envio ele lê a conversa inteira com o número: se já falamos desse projeto, pula.</p>
+    <div id="wLog" class="sub"></div>
+  </div>
+  <div class="caixa"><b>Pra mandar</b><div id="wLista"></div></div>
+  <div class="caixa"><b>Já mandei</b><div id="wFeitos"></div></div>
+</section>
+
+</main>
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+async function api(rota, corpo) {
+  const r = await fetch(rota, corpo === undefined ? {} : { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(corpo) });
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.erro || r.status);
+  return j;
+}
+let dados = { projetos: [], config: {} }, conversas = [], aba = "capturar", configCarregada = false;
+
+for (const b of document.querySelectorAll("nav button")) b.onclick = () => {
+  aba = b.dataset.aba;
+  for (const x of document.querySelectorAll("nav button")) x.classList.toggle("ativo", x === b);
+  for (const s of document.querySelectorAll("main > section")) s.classList.toggle("oculto", s.id !== `aba-${aba}`);
+  if (aba === "esperar" || aba === "whats") carregarConversas();
+  render();
+};
+
+/* ---------- topo: tarefa em andamento ---------- */
+function renderTarefa() {
+  const t = dados.tarefa;
+  $("#tMsg").textContent = t ? `${t.nome}: ${t.msg}${t.rodando ? "" : " ✓"}` : "parado";
+  $("#tBarra").style.width = t?.total ? `${Math.round((100 * t.feitas) / t.total)}%` : t?.rodando ? "30%" : "0";
+  $("#bParar").classList.toggle("oculto", !t?.rodando);
+  for (const b of ["#bCapturar", "#bInteresse", "#bCaixa", "#bWhats"]) $(b).disabled = !!t?.rodando;
+  if (t?.log) $("#wLog").innerHTML = t.log.slice(-12).map(esc).join("<br>");
+}
+$("#bParar").onclick = () => api("/api/parar", {});
+
+/* ---------- 1 capturar ---------- */
+$("#bCapturar").onclick = () => api("/api/capturar", { paginas: Number($("#cPaginas").value) || 10 }).catch((e) => alert(e.message)).then(atualizar);
+function renderCapturar() {
+  const ps = dados.projetos;
+  const n = (f) => ps.filter(f).length;
+  $("#cResumo").innerHTML = `<b>${ps.length}</b> projetos abertos salvos ·
+    ${n((p) => p.descricao != null)} com descrição ·
+    ${n((p) => p.llm && !p.llm.regra)} lidos pela LLM ·
+    ${n((p) => p.llm?.regra)} cortados por regra ·
+    ${n((p) => p.vai && !p.jaInteressado)} em "vai" esperando interesse ·
+    ${n((p) => p.jaInteressado)} já com interesse`;
+}
+
+/* ---------- 2 selecionar ---------- */
+let assinaturaSel = "";
+function renderSelecionar() {
+  const l = dados.llm;
+  const semLlm = dados.projetos.filter((p) => !p.llm && !p.decisao && !p.jaInteressado).length;
+  $("#lMsg").textContent = l?.rodando ? `LLM lendo ${l.feitas + 1}/${l.total}: ${l.atual}` : `${semLlm} aguardando a LLM${l?.atual ? ` · ${l.atual}` : ""}`;
+  $("#bLlm").classList.toggle("oculto", !!l?.rodando);
+  $("#bLlmParar").classList.toggle("oculto", !l?.rodando);
+  const busca = $("#sBusca").value.toLowerCase();
+  const visiveis = dados.projetos.filter((p) => (p.llm || p.decisao) && ($("#sEnviados").checked || !p.jaInteressado) &&
+    (!busca || `${p.titulo} ${p.descricao} ${p.categoria}`.toLowerCase().includes(busca)));
+  const ass = JSON.stringify(visiveis.map((p) => [p.id, p.vai, p.decisao, p.llm?.motivo, p.jaInteressado]));
+  if (ass === assinaturaSel) return; // nada mudou: não mexe na tela (não perde a rolagem)
+  assinaturaSel = ass;
+  const card = (p) => {
+    const eu = !!p.decisao;
+    const selo = eu ? `<span class="pill eu">você: ${p.vai ? "vai" : "não vai"}</span>` : "";
+    const llm = p.llm ? `<span class="pill ${p.llm.vai ? "vai" : "nao"}">${p.llm.regra ? "regra" : "LLM"}: ${p.llm.vai ? "vai" : "não"}</span> <span class="sub">${esc(p.llm.motivo)}</span>` : "";
+    const env = p.jaInteressado ? ' <span class="pill vai">interesse enviado</span>' : "";
+    return `<div class="card" data-id="${esc(p.id)}">
+      <div class="t"><a href="${esc(p.url)}" target="_blank">${esc(p.titulo)}</a>${env}</div>
+      <div class="sub">${esc(p.categoria)} · ${esc(p.orcamento)} · ${esc(p.local)} · ${esc(p.quando)}</div>
+      <div>${selo} ${llm}</div>
+      <div class="desc">${esc(p.descricao || "(sem descrição)")}</div></div>`;
+  };
+  const vai = visiveis.filter((p) => p.vai), nao = visiveis.filter((p) => !p.vai);
+  $("#hVai").textContent = `Vai (${vai.length})`;
+  $("#hNao").textContent = `Não vai (${nao.length})`;
+  $("#colVai").innerHTML = vai.map(card).join("") || '<p class="sub">nada</p>';
+  $("#colNao").innerHTML = nao.map(card).join("") || '<p class="sub">nada</p>';
+}
+for (const col of ["#colVai", "#colNao"]) $(col).onclick = async (e) => {
+  if (e.target.closest("a")) return;
+  const c = e.target.closest(".card");
+  if (!c) return;
+  const p = dados.projetos.find((x) => x.id === c.dataset.id);
+  const novoVai = !p.vai;
+  // voltando pra sugestão da LLM = sem decisão sua
+  const decisao = p.llm && !!p.llm.vai === novoVai ? null : novoVai ? "vai" : "nao";
+  Object.assign(p, { vai: novoVai, decisao });
+  renderSelecionar();
+  await api("/api/decidir", { id: p.id, decisao }).catch((e) => alert(e.message));
+};
+$("#sBusca").oninput = () => { assinaturaSel = ""; renderSelecionar(); };
+$("#sEnviados").onchange = () => { assinaturaSel = ""; renderSelecionar(); };
+$("#bLlm").onclick = () => api("/api/llm", { refazer: true }).then(atualizar);
+$("#bLlmParar").onclick = () => api("/api/llm", { parar: true }).then(atualizar);
+
+/* ---------- 3 interesse ---------- */
+function renderInteresse() {
+  const fila = dados.projetos.filter((p) => p.vai && !p.jaInteressado && !p.interesse?.ok && !p.interesse?.semBotao && (p.llm || p.decisao));
+  $("#iConta").textContent = `${fila.length} projetos em "vai" esperando interesse`;
+  $("#iHoje").textContent = `· ${dados.interessesHoje} enviados hoje (limite ${dados.config.limiteInteresseDia})`;
+  const feitos = dados.projetos.filter((p) => p.interesse).sort((a, b) => String(b.interesse.quando).localeCompare(String(a.interesse.quando)));
+  $("#iLista").innerHTML = `<table><tr><th>projeto</th><th>orçamento</th><th>interesse</th></tr>` +
+    [...fila.map((p) => [p, '<span class="pill">na fila</span>']),
+     ...feitos.map((p) => [p, p.interesse.ok ? '<span class="pill vai">enviado</span>' : `<span class="pill nao">${esc(p.interesse.resposta || "falhou")}</span>`])]
+      .map(([p, s]) => `<tr><td><a href="${esc(p.url)}" target="_blank">${esc(p.titulo)}</a></td><td>${esc(p.orcamento)}</td><td>${s}</td></tr>`).join("") + "</table>";
+}
+$("#bInteresse").onclick = async () => {
+  await salvarConfig();
+  api("/api/interesse", {}).catch((e) => alert(e.message)).then(atualizar);
+};
+$("#bSalvarI").onclick = () => salvarConfig();
+
+/* ---------- 4 esperar / 5 whatsapp ---------- */
+async function carregarConversas() {
+  const todas = (aba === "esperar" ? $("#eTodas") : $("#wTodas")).checked;
+  conversas = await api(`/api/conversas${todas ? "?todas=1" : ""}`);
+  renderConversas();
+}
+const situ = { aguardando: "aguardando cliente", liberado: "contato liberado", respondeu: "cliente respondeu" };
+function renderConversas() {
+  $("#eLista").innerHTML = `<table><tr><th>cliente</th><th>projeto</th><th>situação</th><th>telefone</th><th>WhatsApp</th></tr>` +
+    conversas.map((c) => `<tr><td>${esc(c.cliente)}</td><td>${esc(c.projeto)}</td><td><span class="pill ${c.situacao === "aguardando" ? "" : "vai"}">${situ[c.situacao] ?? esc(c.situacao)}</span>${c.ultimaDoCliente ? `<div class="sub">${esc(c.ultimaDoCliente).slice(0, 200)}</div>` : ""}</td>
+      <td>${esc(c.telefones.join(", "))}</td><td>${c.enviados.length ? "enviado" : c.telefones.length ? "pronto pra mandar" : "—"}</td></tr>`).join("") + "</table>";
+  const prontos = conversas.filter((c) => c.telefones.length && !c.enviados.length);
+  $("#wLista").innerHTML = prontos.length ? `<table><tr><th><input type="checkbox" id="wTudo" checked></th><th>cliente</th><th>número</th><th>projeto</th><th>mensagem</th></tr>` +
+    prontos.map((c) => `<tr data-id="${esc(c.id)}"><td><input type="checkbox" class="wSel" checked></td><td>${esc(c.cliente)}${c.v2 ? "" : ' <span class="pill">antiga</span>'}</td>
+      <td><select class="wNum">${c.telefones.map((n) => `<option>${esc(n)}</option>`).join("")}</select></td><td>${esc(c.projeto)}</td>
+      <td><textarea class="wTxt" rows="2">${esc(c.msg)}</textarea></td></tr>`).join("") + "</table>" : '<p class="sub">ninguém com contato liberado ainda — leia a caixa na etapa 4</p>';
+  if ($("#wTudo")) $("#wTudo").onchange = (e) => document.querySelectorAll(".wSel").forEach((x) => (x.checked = e.target.checked));
+  const feitos = conversas.filter((c) => c.enviados.length);
+  $("#wFeitos").innerHTML = `<table><tr><th>cliente</th><th>projeto</th><th>quando</th><th>respondeu?</th></tr>` +
+    feitos.map((c) => `<tr><td>${esc(c.cliente)}</td><td>${esc(c.projeto)}</td><td>${new Date(c.enviados.at(-1).quando).toLocaleString("pt-BR")}</td>
+      <td>${c.resposta ? (c.resposta.respondeu ? `<b>SIM</b> — ${esc(c.resposta.texto)}` : "ainda não") : '<span class="sub">clique em Checar respostas</span>'}</td></tr>`).join("") + "</table>";
+}
+$("#eTodas").onchange = carregarConversas;
+$("#wTodas").onchange = carregarConversas;
+$("#bCaixa").onclick = () => api("/api/caixa", {}).catch((e) => alert(e.message)).then(atualizar);
+$("#bWhats").onclick = async () => {
+  const itens = [...document.querySelectorAll("#wLista tr[data-id]")].filter((tr) => tr.querySelector(".wSel").checked).map((tr) => {
+    const c = conversas.find((x) => x.id === tr.dataset.id);
+    return { id: c.id, cliente: c.cliente, projeto: c.projeto, numero: tr.querySelector(".wNum").value, texto: tr.querySelector(".wTxt").value };
+  });
+  if (!itens.length) return alert("nada selecionado");
+  if (!confirm(`Mandar WhatsApp para ${itens.length} cliente(s), com pausa entre um e outro?`)) return;
+  api("/api/whats", { itens }).catch((e) => alert(e.message)).then(atualizar);
+};
+$("#bRespostas").onclick = async () => {
+  $("#bRespostas").disabled = true;
+  try { await api("/api/respostas", {}); await carregarConversas(); } catch (e) { alert(e.message); }
+  $("#bRespostas").disabled = false;
+};
+$("#bSalvarW").onclick = async () => { await salvarConfig(); carregarConversas(); };
+
+/* ---------- config ---------- */
+function preencherConfig() {
+  const c = dados.config;
+  $("#cPaginas").value = c.paginas; $("#iLimite").value = c.limiteInteresseDia; $("#iMin").value = c.pausaMin; $("#iMax").value = c.pausaMax;
+  $("#iMsg").value = c.msgInteresse; $("#wModelo").value = c.msgWhats;
+}
+const salvarConfig = () => api("/api/config", {
+  paginas: Number($("#cPaginas").value) || 10, limiteInteresseDia: Number($("#iLimite").value) || 40,
+  pausaMin: Number($("#iMin").value) || 25, pausaMax: Number($("#iMax").value) || 70, msgInteresse: $("#iMsg").value, msgWhats: $("#wModelo").value,
+});
+
+/* ---------- loop ---------- */
+function render() {
+  renderTarefa();
+  if (aba === "capturar") renderCapturar();
+  if (aba === "selecionar") renderSelecionar();
+  if (aba === "interesse") renderInteresse();
+  $("#wEstado").textContent = dados.whatsapp;
+  $("#wEstado").className = `pill ${dados.whatsapp === "conectado" ? "vai" : "nao"}`;
+}
+let tarefaAntes = null;
+async function atualizar() {
+  try { dados = await api("/api/estado"); } catch { return; }
+  if (!configCarregada) { preencherConfig(); configCarregada = true; }
+  const t = dados.tarefa;
+  // terminou uma tarefa da caixa/WhatsApp: recarrega as conversas
+  if (tarefaAntes?.rodando && !t?.rodando && (aba === "esperar" || aba === "whats")) carregarConversas();
+  tarefaAntes = t;
+  render();
+}
+atualizar();
+setInterval(atualizar, 3000);
+</script>
+</body>
+</html>
