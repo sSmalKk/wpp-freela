@@ -289,7 +289,9 @@ function contato(det) {
   const sistema = det.doSistema?.join("\n") ?? "";
   const nome = sistema.match(/Nome do contato:\s*([^\n]+)/)?.[1]?.trim() ?? null;
   const email = sistema.match(/e-mail:\s*([^\s]+@[^\s]+)/i)?.[1] ?? null;
-  const telSistema = telefones(sistema.match(/telefone:\s*([^\n]+)/i)?.[1] ?? "");
+  // projeto postado pelo próprio site ("Freelancer Plataforma", info@freelancer.com.br): o telefone é do site, não de cliente
+  const doSite = /@freelancer\.com\.br$/i.test(email ?? "");
+  const telSistema = doSite ? [] : telefones(sistema.match(/telefone:\s*([^\n]+)/i)?.[1] ?? "");
   const telCliente = telefones((det.doCliente ?? []).join("\n"));
   const todos = [...new Set([...telCliente, ...telSistema])];
   return { nome, email, telefones: todos, fonte: telCliente.length ? "cliente" : telSistema.length ? "site" : null };
