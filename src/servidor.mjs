@@ -329,6 +329,58 @@ async function enviar(id, numero, texto) {
   return { destino };
 }
 
+/**
+ * Página /clientes: todo número que já recebeu WhatsApp pelo painel + quem tem conversa no WhatsApp
+ * e está nos contatos do site (ou mandou msg não lida). Cada um com os projetos/conversas do site e
+ * as últimas mensagens do WhatsApp.
+ */
+async function clientesWhats() {
+  if ((await evo.estado().catch(() => "")) !== "conectado") throw new Error("WhatsApp desconectado — conecte em /qr");
+  const porChave = {}; // chaveNumero → cliente
+  const pegar = (n) => (porChave[evo.chaveNumero(n)] ??= { numero: n, nomes: [], projetos: [], enviados: [] });
+  for (const [id, envios] of Object.entries(estado.enviados)) {
+    for (const e of envios) pegar(e.numero).enviados.push({ id, quando: e.quando, texto: e.texto });
+  }
+  const chats = await evo.conversas().catch(() => []);
+  // o mesmo número pode ter 2 conversas (número@s.whatsapp.net e @lid): junta as duas
+  const chatDe = {};
+  for (const c of chats) {
+    const j = (chatDe[evo.chaveNumero(c.numero)] ??= { numero: c.numero, jids: [], nome: null, naoLidas: 0 });
+    j.jids.push(c.jid);
+    j.nome ??= c.nome;
+    j.naoLidas += c.naoLidas;
+  }
+  const contatoDe = Object.fromEntries(Object.values(contatos).map((c) => [evo.chaveNumero(c.numero), c]));
+  for (const [k, c] of Object.entries(chatDe)) if (contatoDe[k] || c.naoLidas) pegar(c.numero);
+  const lista = Object.entries(porChave).map(([k, cli]) => {
+    const ct = contatoDe[k];
+    const ids = new Set([...(ct?.projetos ?? []).map((p) => p.id), ...cli.enviados.map((e) => e.id)]);
+    cli.nomes = ct?.nomes.filter((n) => n !== "Freelancer Plataforma") ?? [];
+    cli.projetos = [...ids].map((id) => {
+      const it = estado.indice[id] ?? estado.importados[id] ?? {};
+      if (!cli.nomes.length && (it.contatoNome || it.cliente)) cli.nomes.push(it.contatoNome || it.cliente);
+      return { id, projeto: it.projetoInfo?.titulo ?? it.projeto ?? "?", projetoUrl: it.projetoUrl ?? null, conversa: it.url ?? null, orcamento: it.projetoInfo?.orcamento ?? null, ts: it.ts ?? 0 };
+    }).sort((a, b) => b.ts - a.ts);
+    if (!cli.nomes.length && chatDe[k]?.nome) cli.nomes.push(chatDe[k].nome);
+    cli.jids = chatDe[k]?.jids ?? [];
+    cli.naoLidas = chatDe[k]?.naoLidas ?? 0;
+    return cli;
+  });
+  for (let i = 0; i < lista.length; i += 5) {
+    await Promise.all(lista.slice(i, i + 5).map(async (c) => { c.msgs = await evo.historico(c.numero, 15, c.jids).catch(() => []); }));
+  }
+  for (const c of lista) {
+    const ult = c.msgs.at(-1);
+    const minha = c.msgs.findLast((m) => m.deMim);
+    c.novas = c.msgs.filter((m) => !m.deMim && (!minha || m.quando > minha.quando)).length;
+    c.respondeu = c.msgs.some((m) => !m.deMim);
+    c.status = !ult ? "sem conversa" : !ult.deMim ? "responder" : c.respondeu ? "aguardando" : "sem resposta";
+    c.ultima = ult?.quando ?? c.enviados.at(-1)?.quando ?? null;
+  }
+  const ordem = { responder: 0, aguardando: 1, "sem resposta": 2, "sem conversa": 3 };
+  return lista.sort((a, b) => ordem[a.status] - ordem[b.status] || String(b.ultima).localeCompare(String(a.ultima)));
+}
+
 /** JSON: [{ numero|telefone, mensagem?, nome?, projeto?, projetoUrl? }] ou { itens: [...] }. */
 function importar(lista) {
   const arr = Array.isArray(lista) ? lista : (lista?.itens ?? lista?.contatos ?? []);
@@ -824,6 +876,11 @@ const rotas = {
     res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
     res.end(readFileSync(resolve(RAIZ, "src/painel.html")));
   },
+  "GET /clientes": (req, res) => {
+    res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+    res.end(readFileSync(resolve(RAIZ, "src/clientes.html")));
+  },
+  "GET /api/clientes": async () => ({ clientes: await clientesWhats(), lidoEm: new Date().toISOString() }),
   "GET /contatos.csv": (req, res) => {
     gravarCsv();
     res.writeHead(200, { "content-type": "text/csv; charset=utf-8", "content-disposition": 'attachment; filename="contatos.csv"' });

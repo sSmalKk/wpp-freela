@@ -151,15 +151,26 @@ export async function fotoPerfil(numero) {
   return r.ok ? (r.corpo?.profilePictureUrl ?? null) : null;
 }
 
-/** Últimas mensagens trocadas com o número no WhatsApp: [{ deMim, texto, quando }]. */
-export async function historico(numero, limite = 30) {
-  const n = normalizarNumero(numero);
-  const r = await chamar(`/chat/findMessages/${encodeURIComponent(instancia())}`, {
-    method: "POST",
-    body: { where: { key: { remoteJid: `${n}@s.whatsapp.net` } }, limit: limite },
-  });
-  if (!r.ok) return [];
-  const lista = r.corpo?.messages?.records ?? r.corpo?.records ?? (Array.isArray(r.corpo) ? r.corpo : []);
+/**
+ * Últimas mensagens trocadas com o número no WhatsApp: [{ deMim, texto, quando }].
+ * `jids` extras (ex.: o "@lid" da conversa) entram junto — as respostas costumam ficar lá.
+ */
+export async function historico(numero, limite = 30, jids = []) {
+  const alvos = [...new Set([`${normalizarNumero(numero)}@s.whatsapp.net`, ...jids])];
+  const lista = [];
+  const vistos = new Set();
+  for (const remoteJid of alvos) {
+    const r = await chamar(`/chat/findMessages/${encodeURIComponent(instancia())}`, {
+      method: "POST",
+      body: { where: { key: { remoteJid } }, limit: limite },
+    });
+    if (!r.ok) continue;
+    for (const m of r.corpo?.messages?.records ?? r.corpo?.records ?? (Array.isArray(r.corpo) ? r.corpo : [])) {
+      if (vistos.has(m.key?.id)) continue;
+      vistos.add(m.key?.id);
+      lista.push(m);
+    }
+  }
   return lista
     .map((m) => ({
       deMim: !!m.key?.fromMe,
@@ -212,6 +223,33 @@ export async function historicoDeConversa(numeros) {
         saida[n] = { tem: h.length > 0, ultima: h.at(-1)?.quando ?? null };
       }),
     );
+  }
+  return saida;
+}
+
+/** Conversas individuais com número: [{ numero, jid, nome, naoLidas, ultima: { deMim, texto, quando } }]. */
+export async function conversas() {
+  const r = await chamar(`/chat/findChats/${encodeURIComponent(instancia())}`, { method: "POST", body: {} });
+  if (!r.ok) throw falha("chat/findChats", r);
+  const lista = Array.isArray(r.corpo) ? r.corpo : (r.corpo?.records ?? r.corpo?.chats ?? []);
+  const saida = [];
+  for (const c of lista) {
+    let jid = String(c.remoteJid ?? c.id ?? "");
+    if (jid.endsWith("@lid")) jid = String(c.lastMessage?.key?.remoteJidAlt ?? c.lastMessage?.key?.senderPn ?? "");
+    if (!jid.endsWith("@s.whatsapp.net")) continue;
+    const m = c.lastMessage ?? {};
+    const ts = m.messageTimestamp ?? c.updatedAt ?? null;
+    saida.push({
+      numero: jid.split("@")[0],
+      jid: String(c.remoteJid ?? jid),
+      nome: c.pushName ?? (m.key?.fromMe ? null : m.pushName) ?? null,
+      naoLidas: Number(c.unreadCount ?? 0) || 0,
+      ultima: {
+        deMim: !!m.key?.fromMe,
+        texto: m.message?.conversation ?? m.message?.extendedTextMessage?.text ?? (m.messageType ? `[${m.messageType}]` : ""),
+        quando: ts ? new Date(typeof ts === "number" || /^\d+$/.test(ts) ? Number(ts) * 1000 : ts).toISOString() : null,
+      },
+    });
   }
   return saida;
 }
