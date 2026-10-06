@@ -1062,10 +1062,11 @@ createServer(async (req, res) => {
   if (process.platform === "win32" && !process.env.SEM_ABRIR) exec(`start "" "${url}"`);
   // no início, em paralelo (cada um na sua aba do Chrome): scanner, captação de /projetos e a IA só analisando.
   // NADA é enviado sozinho — WhatsApp, Captar e enviar e IA com envio esperam você clicar.
-  // listas salvas antes de existir totalPaginas: estima pelos projetos (10 por página)
   const apagados = limparProjetos();
   if (apagados) console.log(`${apagados} projetos que não têm nada a ver com você saíram da lista`);
-  estado.projetosNovos.totalPaginas ??= estado.projetosNovos.itens.length ? Math.ceil(estado.projetosNovos.itens.length / 10) : null;
+  // a lista é filtrada, então não dá pra estimar as páginas pelos projetos: sem total até uma leitura completa
+  const pn = estado.projetosNovos;
+  if ((pn.totalPaginas ?? 0) < (pn.pagina ?? 0)) pn.totalPaginas = null;
   const incompleto = estado.scan && Object.values(estado.scan.fases).some((v) => v === "rodando");
   rodarScanner({ modo: !Object.keys(estado.indice).length ? "tudo" : incompleto ? "continuar" : "novidades" });
   // lista incompleta: continua da página onde parou; completa: só busca os novos (para quando não aparece nada novo)
