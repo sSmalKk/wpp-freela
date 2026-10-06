@@ -412,24 +412,25 @@ export function aplicarConversa(item, det) {
 }
 
 /** Abre `url` numa aba "vitrine" do Chrome e traz ela pra frente (pra você ver a conversa/perfil). */
+/**
+ * Abre `url` na aba "vitrine" (a mesma sempre, guardada pelo id) e traz pra frente.
+ * Não conversa com as outras abas — as do robô ficam ocupadas e travavam o clique — e não espera carregar.
+ */
+let abaVitrine = null;
 export async function mostrarNoChrome(url) {
-  const NOME = "wpp-freela-vitrine";
-  let alvo = null;
-  for (const t of (await cdp.abas()).filter((t) => t.url.includes("freelancer.com.br"))) {
-    const c = await cdp.conectar(t).catch(() => null);
-    const nome = await c?.avaliar("window.name").catch(() => "");
-    c?.fechar();
-    if (nome === NOME) alvo = t;
+  const existe = abaVitrine && (await cdp.abas()).find((t) => t.id === abaVitrine);
+  if (existe) {
+    const c = await cdp.conectar(existe);
+    try {
+      await c.enviar("Page.navigate", { url }, 10_000);
+    } finally {
+      c.fechar();
+    }
+  } else {
+    const nova = await (await fetch(`http://localhost:${cdp.porta()}/json/new?${url}`, { method: "PUT" })).json();
+    abaVitrine = nova.id;
   }
-  alvo ??= await (await fetch(`http://localhost:${cdp.porta()}/json/new?${SITE}/`, { method: "PUT" })).json();
-  const c = await cdp.conectar(alvo);
-  try {
-    await c.ir(url);
-    await c.avaliar(`window.name = "${NOME}"`).catch(() => {});
-  } finally {
-    c.fechar();
-  }
-  await fetch(`http://localhost:${cdp.porta()}/json/activate/${alvo.id}`).catch(() => {});
+  await fetch(`http://localhost:${cdp.porta()}/json/activate/${abaVitrine}`).catch(() => {});
 }
 
 async function comSessao(fn) {
