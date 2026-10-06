@@ -889,6 +889,24 @@ const rotas = {
     rodarScanner({ modo, so });
     return { ok: true };
   },
+  // página só com o QR do WhatsApp: recarrega a cada 30 s (o QR vence) até conectar
+  "GET /qr": async (req, res) => {
+    let corpoHtml;
+    try {
+      if ((await evo.estado()) === "conectado") corpoHtml = "<h1>WhatsApp conectado ✓</h1><p>Pode fechar esta aba.</p>";
+      else {
+        const { qrBase64, codigo } = await evo.conectar();
+        corpoHtml = `<h1>Escaneie no WhatsApp</h1><p>WhatsApp → Aparelhos conectados → Conectar aparelho</p>
+          ${qrBase64 ? `<img src="data:image/png;base64,${qrBase64}" width="360" height="360">` : ""}
+          ${codigo ? `<p>ou use o código: <b>${codigo}</b></p>` : ""}
+          <p style="color:#666">troca sozinho a cada 30 s</p><script>setTimeout(() => location.reload(), 30000)</script>`;
+      }
+    } catch (e) {
+      corpoHtml = `<h1>Erro</h1><p>${String(e.message).replace(/</g, "&lt;")}</p><script>setTimeout(() => location.reload(), 10000)</script>`;
+    }
+    res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+    res.end(`<!doctype html><meta charset="utf-8"><title>WhatsApp QR</title><body style="font-family:sans-serif;text-align:center;padding:40px;background:#fff">${corpoHtml}</body>`);
+  },
   "POST /api/conectar": async () => {
     if ((await evo.estado()) === "conectado") return { conectado: true };
     const { qrBase64, codigo } = await evo.conectar();
