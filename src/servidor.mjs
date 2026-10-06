@@ -375,6 +375,30 @@ function importar(lista) {
  * A lista salva NUNCA é apagada (só se mudar a busca): projetos novos entram, os já vistos ficam.
  * `novidades`: para depois de 3 páginas seguidas sem nenhum projeto novo (os novos aparecem no começo).
  */
+// Projetos que não têm nada a ver com o perfil (vídeo, design, vendas, presencial…) nem entram na lista.
+// Quem a IA já analisou: vale a nota dela. O resto: área do site, ou o título quando a área é outra.
+const AREAS_MINHAS = /^(Softwares e sistemas|Site e aplicativos|Tecnologia e Ciência)/;
+const AREAS_FORA = /Eletrônicos|Desenho técnico|Pesquisa científica|Robótica/;
+const TITULO_MEU =
+  /\bsites?\b|landing|sistema|\bapps?\b|aplicativo(?! de mensage)|automa[çt]|\brob[oô]s?\b|\bbots?\b|chat ?bot|\bapis?\b|integra[çc][ãa]o|scrap|extra[çt][ãaoõ]|extrator|dashboard|chat ?gpt|\bgpt|agentes? de ia|programa[çd]|software|wordpress|e-?commerce|loja virtual|n8n|python|javascript|typescript|node|react|flutter|php|laravel|banco de dados|planilha|excel|crm\b|erp\b|power ?bi|\bweb\b|full ?stack|front-?end|back-?end|desenvolvedor|unreal|unity/i;
+const TITULO_FORA =
+  /v[ií]deo|reels|grava[çc]|editor|design|logo|banner|identidade visual|personage|ilustra|imagem|motion|anima[çc]|treinamento|especialista em|vendedor|vendas|prospec|\bsdr\b|atendimento|atendente|assistente|divulga|social ?m[ií]dia|tr[áa]fego|livro|curso|professor|aula|semin[áa]rio|acad[êe]mico|est[áa]gio|copywrit|reda[çc]|tradu|locu[çc]|m[úu]sic|par[óo]dia|apresenta[çc]|powerpoint|el[ée]tric|t[ée]cnico|disparo/i;
+function combinaComigo(p) {
+  const an = estado.analises[p.id];
+  if (typeof an?.encaixa === "boolean") return an.encaixa;
+  if (!/remot/i.test(p.local ?? "Remoto")) return false;
+  if (AREAS_MINHAS.test(p.categoria ?? "")) return !AREAS_FORA.test(p.categoria);
+  return TITULO_MEU.test(p.titulo ?? "") && !TITULO_FORA.test(p.titulo ?? "");
+}
+/** Apaga da lista salva o que não combina. Devolve quantos saíram. */
+function limparProjetos() {
+  const pn = estado.projetosNovos;
+  const antes = pn.itens.length;
+  pn.itens = pn.itens.filter(combinaComigo);
+  if (pn.itens.length !== antes) gravar("projetos-novos.json", pn);
+  return antes - pn.itens.length;
+}
+
 async function lerProjetosNovos(paginas, busca = "", { continuar = false, novidades = false, parar = () => false, aoNovos = () => {} } = {}) {
   if (estado.lendoProjetos && !estado.lendoProjetos.erro) return;
   const pn = estado.projetosNovos;
@@ -394,7 +418,8 @@ async function lerProjetosNovos(paginas, busca = "", { continuar = false, novida
     await freela.listarProjetos(paginas, busca, {
       deP: alvo.pagina + 1,
       parar: pararTudo,
-      aoPagina: (cards, p) => {
+      aoPagina: (todos, p) => {
+        const cards = todos.filter(combinaComigo);
         semNovos = cards.some((k) => !porId.has(k.id)) ? 0 : semNovos + 1;
         for (const k of cards) {
           const velho = porId.get(k.id);
@@ -682,6 +707,7 @@ async function iaEmLotes({ tamanho = 10, notaMin = 6, min = 20, max = 50, perfil
         if (k < proximos.length - 1 && !lote.parar) await dorme(2000 + Math.random() * 3000); // lendo como gente
       }
 
+      limparProjetos(); // os que a IA disse que não encaixam saem da lista
       lote.progresso = { feitas: proximos.length, total: proximos.length };
       if (!enviar) continue; // só análise: segue pros próximos, sem pausa de envio
 
@@ -1030,6 +1056,8 @@ createServer(async (req, res) => {
   // no início, em paralelo (cada um na sua aba do Chrome): scanner, captação de /projetos e a IA só analisando.
   // NADA é enviado sozinho — WhatsApp, Captar e enviar e IA com envio esperam você clicar.
   // listas salvas antes de existir totalPaginas: estima pelos projetos (10 por página)
+  const apagados = limparProjetos();
+  if (apagados) console.log(`${apagados} projetos que não têm nada a ver com você saíram da lista`);
   estado.projetosNovos.totalPaginas ??= estado.projetosNovos.itens.length ? Math.ceil(estado.projetosNovos.itens.length / 10) : null;
   const incompleto = estado.scan && Object.values(estado.scan.fases).some((v) => v === "rodando");
   rodarScanner({ modo: !Object.keys(estado.indice).length ? "tudo" : incompleto ? "continuar" : "novidades" });
