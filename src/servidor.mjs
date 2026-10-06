@@ -64,6 +64,7 @@ const estado = {
   historico: ler("historico-whatsapp.json", {}), // numero → { tem, ultima } — já existe conversa no WhatsApp?
   analises: ler("analises.json", {}), // projetoId → { nota, motivo, mensagem, enviado } — IA em lotes
   iaLote: null,
+  foraDaFila: ler("vendas.json", {}), // id → { motivo } — vendas e fraudes: nunca entram na fila do WhatsApp
   arquivados: ler("arquivados.json", {}), // id → { quando } — pasta "Arquivados" do painel (o site não é tocado)
   projetosNovos: ler("projetos-novos.json", { lidoEm: null, itens: [] }),
   interesses: ler("interesses.json", {}), // projetoId → { quando, ok, mensagem }
@@ -893,7 +894,7 @@ const rotas = {
     } catch (e) {
       whatsapp = `erro: ${e.message}`;
     }
-    const itens = todosItens().map((i) => ({
+    const itens = todosItens().filter((i) => !estado.foraDaFila[i.id]).map((i) => ({
       ...i,
       rascunho: estado.rascunhos[i.id] ?? null,
       enviados: estado.enviados[i.id] ?? [],
