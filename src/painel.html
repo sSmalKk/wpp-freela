@@ -23,6 +23,8 @@
   nav .extra { margin-left: 10px; }
   button { font: inherit; border: 1px solid var(--linha); background: var(--card); color: var(--txt); border-radius: 6px; padding: 5px 10px; cursor: pointer; }
   button:hover { border-color: var(--azul); }
+  a.botao { display: inline-block; border: 1px solid var(--linha); background: var(--card); color: var(--txt); border-radius: 6px; padding: 5px 10px; text-decoration: none; white-space: nowrap; }
+  a.botao:hover { border-color: var(--azul); }
   button:disabled { opacity: .5; cursor: default; }
   button.enviar { background: var(--verde); border-color: var(--verde); color: #fff; font-weight: 600; }
   button.pular { background: var(--amar-bg); color: var(--amar); border-color: transparent; font-weight: 600; }
@@ -769,11 +771,12 @@ function pRender() {
   $("#bInteresseTodos").disabled = !!lt?.rodando;
   $("#bInteresseParar").classList.toggle("oculto", !lt?.rodando);
   $("#pStatus").textContent = pn.lendo?.erro ? `erro: ${pn.lendo.erro}` : pn.lendo ? `lendo projetos… página ${pn.lendo.pagina ?? 0} · ${pn.lendo.projetos ?? 0} projetos` : pn.lidoEm ? `lido ${new Date(pn.lidoEm).toLocaleString("pt-BR")} — ${pn.itens.length} projetos` : "a lista é lida sozinha ao abrir e no Enviar para todos";
-  $("#pLista").innerHTML = pVisiveis().map((p) => `<div class="linha" data-id="${esc(p.id)}" style="grid-template-columns:1fr 200px 160px">
+  $("#pLista").innerHTML = pVisiveis().map((p) => `<div class="linha" data-id="${esc(p.id)}" style="grid-template-columns:1fr 200px 160px 110px">
       <div><a class="titulo" href="${esc(p.url)}" target="_blank">${esc(p.titulo)}</a>
         <div class="sub">${esc(p.categoria || "")} · ${esc(p.local || "")} · ${esc(p.quando || "")}</div></div>
       <div><b>${esc(p.orcamento || "")}</b><div class="sub">${p.interessados} interessados · ${esc(p.status || "")}</div></div>
       <div>${p.jaInteressado || p.interesse?.ok ? '<span class="pill ok">interesse enviado</span>' : p.interesse?.semBotao ? '<span class="pill">sem botão (fechado)</span>' : '<span class="pill amar">falta</span>'}</div>
+      <div>${p.url ? `<a class="botao" href="${esc(p.url)}" target="_blank">Ver projeto</a>` : ""}</div>
     </div>`).join("") || '<p class="sub">nada aqui</p>';
 }
 $("#pEsconder").onchange = pRender;
