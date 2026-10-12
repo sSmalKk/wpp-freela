@@ -120,46 +120,7 @@ async function respostas() {
   console.log("salvo em data/respostas.csv");
 }
 
-/**
- * Envia data/lote-whats.json ([{ id, numero, texto }]) pelo painel: espera o WhatsApp conectar, pausa 30-90 s entre um e outro.
- * Antes de cada um lê a conversa inteira com o número: se já falamos desse projeto (ou já mandei pra ele pelo painel), pula.
- */
-async function lote() {
-  const lista = lerDados("lote-whats.json", []);
-  const indice = lerDados("indice.json", {});
-  const dorme = (ms) => new Promise((ok) => setTimeout(ok, ms));
-  for (let t = 0; (await evo.estado().catch(() => "")) !== "conectado"; t++) {
-    if (t >= 180) throw new Error("WhatsApp não conectou em 15 min");
-    if (t % 12 === 0) console.log("esperando o WhatsApp conectar…");
-    await dorme(5000);
-  }
-  const feitos = new Set(); // número+projeto já enviado neste lote
-  for (const [k, x] of lista.entries()) {
-    const titulo = tituloDo(indice[x.id]);
-    const chave = `${evo.chaveNumero(x.numero)}|${sem(titulo)}`;
-    const enviados = lerDados("enviados.json", {});
-    const pelopainel = Object.entries(enviados).some(([id, es]) =>
-      es.some((e) => evo.chaveNumero(e.numero) === evo.chaveNumero(x.numero) && (id === x.id || sem(tituloDo(indice[id])) === sem(titulo))));
-    const h = await evo.historico(x.numero, 500).catch(() => []);
-    const naConversa = h.find((m) => falaDoProjeto(m.texto, titulo) || sem(m.texto).trim() === sem(x.texto).trim());
-    if (feitos.has(chave) || pelopainel || naConversa) {
-      const motivo = naConversa ? `já falamos disso em ${quandoBr(naConversa.quando)}: "${naConversa.texto.slice(0, 60)}"` : "já recebeu msg desse projeto";
-      console.log(`${k + 1}/${lista.length} pulado ${x.numero} — ${motivo}`);
-      continue;
-    }
-    const r = await fetch("http://localhost:3737/api/enviar", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ id: x.id, numero: x.numero, texto: x.texto }),
-    });
-    const corpo = await r.json().catch(() => ({}));
-    console.log(`${k + 1}/${lista.length} ${r.ok ? "enviado" : `ERRO ${corpo.erro}`}: ${x.numero} — ${x.texto}`);
-    if (r.ok) feitos.add(chave);
-    if (k < lista.length - 1) await dorme(30_000 + Math.random() * 60_000);
-  }
-}
-
-const comandos = { status, conectar, enviar, respostas, lote };
+const comandos = { status, conectar, enviar, respostas };
 const fn = comandos[comando];
 if (!fn) {
   console.log("comandos: status | conectar [numero] | enviar <numero> <mensagem>");

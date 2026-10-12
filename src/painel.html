@@ -235,7 +235,7 @@
   <section id="aba-enviar" class="oculto">
     <div class="caixa barra">
       <b id="eResumo"></b>
-      <div class="grupo"><span class="sub">contagem antes de enviar</span><input type="number" id="intMin" min="3"> – <input type="number" id="intMax" min="3"><span class="sub">seg</span></div>
+      
       <button id="eIniciar" class="enviar grande">Iniciar</button>
       <span id="eStatus" class="sub"></span>
     </div>
@@ -269,7 +269,7 @@
           <div class="contador" id="rContador">–</div>
           <div class="barra" style="justify-content:center">
             <button id="rEnviar" class="enviar grande">Enviar agora</button>
-            <button id="rPausar" class="grande">Pausar</button>
+            
             <button id="rPular" class="pular grande">Pular</button>
             <button id="rParar" class="perigo">Parar tudo</button>
           </div>
@@ -677,27 +677,19 @@ async function carregarRevisao(it) {
   } catch (e) { $("#rWhats").innerHTML = `<span class="sub">não deu pra ler o WhatsApp: ${esc(e.message)}</span>`; }
 }
 
-$("#rNumeros").addEventListener("change", (e) => { const it = porId(envio.fila[envio.pos]); if (it && e.target.name === "rnum") { pausar(true); numeroEscolhido[it.id] = e.target.value; carregarRevisao(it); } });
-$("#rMsg").addEventListener("input", () => { const it = porId(envio.fila[envio.pos]); if (it) textos[it.id] = $("#rMsg").value; if (!envio.pausado) pausar(true); });
+$("#rNumeros").addEventListener("change", (e) => { const it = porId(envio.fila[envio.pos]); if (it && e.target.name === "rnum") { numeroEscolhido[it.id] = e.target.value; carregarRevisao(it); } });
+$("#rMsg").addEventListener("input", () => { const it = porId(envio.fila[envio.pos]); if (it) textos[it.id] = $("#rMsg").value; });
 $("#rIa").onclick = async () => {
   const it = porId(envio.fila[envio.pos]); if (!it) return;
-  pausar(true); $("#rIa").disabled = true; $("#rIa").textContent = "gerando…";
+  $("#rIa").disabled = true; $("#rIa").textContent = "gerando…";
   try { const t = (await api("/api/rascunho", { id: it.id })).texto; $("#rMsg").value = t; salvarTexto(it.id, t); } catch (e) { alert(e.message); }
   $("#rIa").disabled = false; $("#rIa").textContent = "IA";
 };
 $("#rMinha").onclick = () => { const it = porId(envio.fila[envio.pos]); if (it) { $("#rMsg").value = preencher(it); textos[it.id] = $("#rMsg").value; } };
 
-function pausar(valor) {
-  envio.pausado = typeof valor === "boolean" ? valor : !envio.pausado;
-  $("#rPausar").textContent = envio.pausado ? "Retomar" : "Pausar";
-  $("#rContador").classList.toggle("pausado", envio.pausado);
-  $("#rContador").textContent = envio.pausado ? `pausado (${envio.restante}s)` : `${envio.restante}s`;
-}
-$("#rPausar").onclick = () => pausar(!envio.pausado);
 // na revisão: abre na mão e conta como "resolvido" — o enviador segue pro próximo
 $("#rPlay").onclick = async () => {
   const it = porId(envio.fila[envio.pos]); if (!it) return;
-  pausar(true);
   // "sim" → conta como enviado e vai pro próximo; "não" → fica pausado neste cliente
   if (await abrirManual(it, $("input[name=rnum]:checked")?.value || numeroDe(it), $("#rMsg").value)) envio.acao = "manual";
 };
@@ -705,21 +697,15 @@ $("#rEnviar").onclick = () => { envio.acao = "enviar"; };
 $("#rPular").onclick = () => { envio.acao = "pular"; };
 $("#rParar").onclick = () => { envio.acao = "parar"; };
 
-/** Espera a contagem (ou um botão). Devolve "enviar" | "pular" | "parar". */
-async function aguardarDecisao(segundos) {
-  envio.restante = segundos; envio.acao = null; pausar(false);
-  while (true) {
-    for (let t = 0; t < 10; t++) { if (envio.acao) return envio.acao; await dorme(100); }
-    if (envio.pausado) { $("#rContador").textContent = `pausado (${envio.restante}s)`; continue; }
-    envio.restante--;
-    $("#rContador").textContent = `${envio.restante}s`;
-    if (envio.restante <= 0) return "enviar";
-  }
+/** Espera um botão — nada é enviado sozinho. Devolve "enviar" | "manual" | "pular" | "parar". */
+async function aguardarDecisao() {
+  envio.acao = null;
+  while (!envio.acao) await dorme(100);
+  return envio.acao;
 }
 
 $("#eIniciar").onclick = async () => {
   if (!envio.fila.length) return;
-  api("/api/config", { intervaloMin: Number($("#intMin").value) || 10, intervaloMax: Number($("#intMax").value) || 20 });
   envio.rodando = true; renderEnvio();
   for (; envio.pos < envio.fila.length; envio.pos++, salvarFila()) {
     const it = porId(envio.fila[envio.pos]);
@@ -727,12 +713,9 @@ $("#eIniciar").onclick = async () => {
     renderEnvio();
     $("#eStatus").textContent = `${envio.pos + 1} de ${envio.fila.length}`;
     await carregarRevisao(it);
-    const min = Math.max(3, Number($("#intMin").value) || 10), max = Math.max(min, Number($("#intMax").value) || min);
-    // quem já recebeu ou já conversou começa pausado: você decide
-    const segundos = Math.round(min + Math.random() * (max - min));
-    const decisaoP = aguardarDecisao(segundos);
-    if (it.enviados.length || it.jaFalamos.length || it.historico?.tem) pausar(true);
-    const decisao = await decisaoP;
+    // tudo manual: nada sai sozinho, só com Enviar agora / abrir na mão
+    $("#rContador").textContent = "esperando você";
+    const decisao = await aguardarDecisao();
     if (decisao === "parar") { log("parado"); break; }
     if (decisao === "manual") { envio.resultado[it.id] = "enviado"; selecionados.delete(it.id); log(`✓ enviado manualmente: ${it.contatoNome || it.cliente} — ${it.projeto}`); continue; }
     if (decisao === "pular") { envio.resultado[it.id] = "pulado"; log(`pulado: ${it.contatoNome || it.cliente} — ${it.projeto}`); continue; }
@@ -968,7 +951,6 @@ async function atualizar(forcar) {
     : "💾 tudo fica salvo em data/ a cada página — pode reiniciar sem perder. ") + '<a href="/contatos.csv">baixar contatos.csv</a>';
   if (forcar === true) {
     for (const c of ["minhaMsg", "minhaMsgRetorno", "msgInteresse"]) $("#" + c).value = dados.config[c] || "";
-    $("#intMin").value = dados.config.intervaloMin; $("#intMax").value = dados.config.intervaloMax;
   }
   renderScanner();
   renderProcessos();
